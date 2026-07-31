@@ -1,0 +1,9 @@
+{
+  "name": "library-frontend",
+  "version": "1.0.0",
+  "description": "图书管理系统前端",
+  "main": "serve.js",
+  "scripts": {
+    "start": "node serve.js"
+  }
+}

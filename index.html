@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>图书管理系统</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>📚 图书管理系统</h1>
+
+    <!-- 新增图书表单 -->
+    <section class="card">
+      <h2>新增图书</h2>
+      <form id="add-form">
+        <input type="text" id="title" placeholder="书名" required>
+        <input type="text" id="author" placeholder="作者" required>
+        <input type="number" id="totalCopies" placeholder="馆藏数量" min="1" value="1" required>
+        <button type="submit">添加</button>
+      </form>
+    </section>
+
+    <!-- 图书列表 -->
+    <section class="card">
+      <h2>图书列表 <button id="refresh" class="btn-small">刷新</button></h2>
+      <table id="book-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>书名</th>
+            <th>作者</th>
+            <th>馆藏</th>
+            <th>可借</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="book-list">
+          <tr><td colspan="7" class="loading">加载中…</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <!-- 错误提示 -->
+  <div id="error-toast" class="toast hidden"></div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
