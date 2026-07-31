@@ -1,0 +1,26 @@
+{
+  "name": "library-frontend",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "图书管理系统前端代码",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "type-check": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "vue": "^3.4.21",
+    "vue-router": "^4.3.0",
+    "axios": "^1.6.8",
+    "echarts": "^5.5.0",
+    "vue-echarts": "^7.0.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.4",
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0",
+    "vue-tsc": "^2.0.6"
+  }
+}
