@@ -1,0 +1,30 @@
+.app-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.app-title {
+  margin-bottom: 24px;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.section-card {
+  margin-bottom: 24px;
+}
+
+.chart-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.chart-col {
+  flex: 1 1 320px;
+  min-width: 300px;
+}
+
+.chart-box {
+  height: 320px;
+}
