@@ -1,0 +1,193 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f5f5f5;
+  color: #333;
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 24px;
+  color: #2c3e50;
+}
+
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.card h2 {
+  margin-bottom: 16px;
+  color: #34495e;
+  font-size: 1.2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+input[type="text"],
+input[type="number"] {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  flex: 1;
+  min-width: 120px;
+}
+
+button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  background: #3498db;
+  color: #fff;
+  transition: background 0.2s;
+}
+
+button:hover {
+  background: #2980b9;
+}
+
+button:disabled {
+  background: #bdc3c7;
+  cursor: not-allowed;
+}
+
+button.btn-small {
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+button.btn-borrow {
+  background: #27ae60;
+}
+button.btn-borrow:hover {
+  background: #229954;
+}
+
+button.btn-return {
+  background: #e67e22;
+}
+button.btn-return:hover {
+  background: #d35400;
+}
+
+button.btn-delete {
+  background: #e74c3c;
+}
+button.btn-delete:hover {
+  background: #c0392b;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 10px 8px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+  font-size: 14px;
+}
+
+th {
+  background: #f8f9fa;
+  color: #2c3e50;
+  font-weight: 600;
+}
+
+.loading {
+  text-align: center;
+  color: #999;
+  padding: 24px;
+}
+
+.status-AVAILABLE {
+  color: #27ae60;
+  font-weight: 600;
+}
+
+.status-UNAVAILABLE {
+  color: #e74c3c;
+  font-weight: 600;
+}
+
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #e74c3c;
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  transition: opacity 0.3s;
+}
+
+.toast.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+}
+
+.actions input {
+  width: 80px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+.hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #999;
+}
+
+button.btn-edit {
+  background: #8e44ad;
+}
+button.btn-edit:hover {
+  background: #732d91;
+}
+
+button.btn-save {
+  background: #16a085;
+}
+button.btn-save:hover {
+  background: #138a72;
+}
+
+button.btn-cancel {
+  background: #7f8c8d;
+}
+button.btn-cancel:hover {
+  background: #6c7a7a;
+}
