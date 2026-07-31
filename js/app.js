@@ -74,17 +74,18 @@ async function renderBooks() {
       return;
     }
     list.innerHTML = books.map(b => `
-      <tr>
+      <tr id="row-${b.id}">
         <td>${b.id}</td>
-        <td>${escapeHtml(b.title)}</td>
-        <td>${escapeHtml(b.author)}</td>
-        <td>${b.totalCopies}</td>
+        <td class="cell-title-${b.id}">${escapeHtml(b.title)}</td>
+        <td class="cell-author-${b.id}">${escapeHtml(b.author)}</td>
+        <td class="cell-total-${b.id}">${b.totalCopies}</td>
         <td>${b.availableCopies}</td>
         <td class="status-${b.status}">${b.status === 'AVAILABLE' ? '可借' : '已借完'}</td>
         <td class="actions">
           <input type="text" placeholder="借阅人" id="borrower-${b.id}" ${b.availableCopies === 0 ? 'disabled' : ''}>
           <button class="btn-borrow" data-borrow="${b.id}" ${b.availableCopies === 0 ? 'disabled' : ''}>借出</button>
           <button class="btn-return" data-return="${b.id}">归还</button>
+          <button class="btn-edit" data-edit="${b.id}">编辑</button>
           <button class="btn-delete" data-delete="${b.id}">删除</button>
         </td>
       </tr>`).join('');
@@ -148,6 +149,45 @@ async function handleDelete(id) {
   }
 }
 
+// ---- Inline edit: PUT /api/books/{id} (specs 更新图书信息) ----
+function startEdit(id) {
+  const titleEl = $(`#row-${id} .cell-title-${id}`);
+  const authorEl = $(`#row-${id} .cell-author-${id}`);
+  const totalEl = $(`#row-${id} .cell-total-${id}`);
+
+  const title = titleEl.textContent;
+  const author = authorEl.textContent;
+  const total = totalEl.textContent;
+
+  titleEl.innerHTML = `<input type="text" class="edit-title-${id}" value="${escapeHtml(title)}">`;
+  authorEl.innerHTML = `<input type="text" class="edit-author-${id}" value="${escapeHtml(author)}">`;
+  totalEl.innerHTML = `<input type="number" min="1" class="edit-total-${id}" value="${escapeHtml(total)}">`;
+
+  // Replace actions with Save/Cancel only while editing
+  $(`#row-${id} .actions`).innerHTML = `
+    <button class="btn-save" data-save="${id}">保存</button>
+    <button class="btn-cancel" data-cancel="${id}">取消</button>
+  `;
+}
+
+async function handleSave(id) {
+  const title = $(`#row-${id} .edit-title-${id}`).value.trim();
+  const author = $(`#row-${id} .edit-author-${id}`).value.trim();
+  const totalCopies = Number($(`#row-${id} .edit-total-${id}`).value);
+  if (!title || !author) { showError('书名和作者不能为空'); return; }
+  if (!Number.isInteger(totalCopies) || totalCopies < 1) { showError('馆藏数量须为 >=1 的整数'); return; }
+  try {
+    await Books.update(id, { title, author, totalCopies });
+    await renderBooks();
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+function handleCancel(id) {
+  renderBooks();
+}
+
 // ---- Init ----
 document.addEventListener('DOMContentLoaded', () => {
   $('#add-form').addEventListener('submit', handleAdd);
@@ -157,8 +197,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const borrowId = e.target.dataset.borrow;
     const returnId = e.target.dataset.return;
     const deleteId = e.target.dataset.delete;
+    const editId = e.target.dataset.edit;
+    const saveId = e.target.dataset.save;
+    const cancelId = e.target.dataset.cancel;
     if (borrowId) handleBorrow(Number(borrowId));
     else if (returnId) handleReturn(Number(returnId));
+    else if (editId) startEdit(Number(editId));
+    else if (saveId) handleSave(Number(saveId));
+    else if (cancelId) handleCancel(Number(cancelId));
     else if (deleteId) handleDelete(Number(deleteId));
   });
 

@@ -164,3 +164,30 @@ th {
   padding: 4px 6px;
   font-size: 12px;
 }
+
+.hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #999;
+}
+
+button.btn-edit {
+  background: #8e44ad;
+}
+button.btn-edit:hover {
+  background: #732d91;
+}
+
+button.btn-save {
+  background: #16a085;
+}
+button.btn-save:hover {
+  background: #138a72;
+}
+
+button.btn-cancel {
+  background: #7f8c8d;
+}
+button.btn-cancel:hover {
+  background: #6c7a7a;
+}
