@@ -1,0 +1,11 @@
+{
+  "task_id": "DEV-f4ad1a6e-7360-11f1-8c66-df5563d236aa-2db90325-1cf6-4076-a605-018105f5040e",
+  "stage": "review",
+  "blocker_count": 0,
+  "critical_count": 0,
+  "major_count": 2,
+  "minor_count": 3,
+  "review_status": "completed",
+  "cross_repo_alignment": "partial",
+  "generated_at": "2026-08-06T00:00:00Z"
+}
