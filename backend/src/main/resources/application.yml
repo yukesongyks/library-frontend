@@ -1,0 +1,22 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: library-algo-backend
+  servlet:
+    multipart:
+      max-request-size: 2MB
+
+# 算法模块安全限制（由 Service 读取，集中配置便于调整）
+algo:
+  hash:
+    max-input-bytes: 10240   # 10KB，防 DoS
+  bubble-sort:
+    max-array-size: 10000    # 防 O(n^2) 超时
+
+logging:
+  level:
+    com.antgroup.library.algo: INFO
