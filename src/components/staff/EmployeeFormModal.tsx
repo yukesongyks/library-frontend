@@ -1,5 +1,6 @@
 import { Modal, Form, Input, DatePicker, Select, message } from "antd";
 import { useEffect } from "react";
+import dayjs from "dayjs";
 import type { Employee, EmployeeFormData } from "../../types/staff";
 
 interface Props {
@@ -17,7 +18,7 @@ export default function EmployeeFormModal({ open, editingEmployee, onCancel, onS
       if (editingEmployee) {
         form.setFieldsValue({
           ...editingEmployee,
-          hireDate: editingEmployee.hireDate,
+          hireDate: editingEmployee.hireDate ? dayjs(editingEmployee.hireDate) : undefined,
         });
       } else {
         form.resetFields();
@@ -28,7 +29,12 @@ export default function EmployeeFormModal({ open, editingEmployee, onCancel, onS
   const handleOk = async () => {
     try {
       const values = await form.validateFields();
-      await onSubmit(values);
+      // M-01 fix: convert dayjs object to string for API submission
+      const submitData: EmployeeFormData = {
+        ...values,
+        hireDate: values.hireDate ? dayjs(values.hireDate as any).format("YYYY-MM-DD") : "",
+      };
+      await onSubmit(submitData);
       message.success(editingEmployee ? "更新成功" : "新增成功");
       onCancel();
     } catch (err: any) {

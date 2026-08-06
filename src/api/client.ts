@@ -70,6 +70,61 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 }
 
 /**
+ * FormData variant for file uploads. Uses the same envelope contract for errors,
+ * but sends raw FormData without JSON.stringify and without Content-Type header
+ * (browser auto-sets multipart boundary).
+ */
+export async function requestFormData<T>(
+  path: string,
+  formData: FormData,
+  options: Omit<RequestInit, "body"> = {},
+): Promise<T> {
+  const { headers, ...rest } = options;
+
+  const finalHeaders: Record<string, string> = {
+    "X-Caller-Id": CALLER_ID,
+    ...(headers as Record<string, string> | undefined),
+  };
+
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...rest,
+      method: rest.method || "POST",
+      headers: finalHeaders,
+      body: formData,
+    });
+  } catch {
+    throw new Error(
+      "Network request failed. Please check your connection and try again.",
+    );
+  }
+
+  if (!res.ok) {
+    throw new Error(
+      `Request failed with HTTP status ${res.status}. Please try again later.`,
+    );
+  }
+
+  let payload: ApiResponse<T>;
+  try {
+    payload = (await res.json()) as ApiResponse<T>;
+  } catch {
+    throw new Error("Received an invalid response from the server.");
+  }
+
+  if (payload.code !== 0) {
+    throw new Error(payload.message || `Request failed (code ${payload.code}).`);
+  }
+
+  if (payload.data === undefined || payload.data === null) {
+    throw new Error("Server returned success but no data was provided.");
+  }
+
+  return payload.data;
+}
+
+/**
  * Blob variant for file downloads. Uses the same envelope contract for errors,
  * but returns the raw `Blob` on success so callers can trigger a download.
  */

@@ -77,7 +77,7 @@ export default function EmployeeList() {
       title: "技能标签",
       dataIndex: "skills",
       key: "skills",
-      render: (skills: string[]) => skills?.map((s) => <Tag key={s}>{s}</Tag>),
+      render: (skills: string[]) => (skills || []).map((s) => <Tag key={s}>{s}</Tag>),
     },
     {
       title: "操作",

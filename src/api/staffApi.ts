@@ -1,4 +1,4 @@
-import { request } from "./client";
+import { request, requestFormData } from "./client";
 import type {
   Employee,
   EmployeePageData,
@@ -46,7 +46,7 @@ export async function deleteEmployee(id: number): Promise<void> {
 
 export async function getBudgets(query: BudgetQuery): Promise<Budget[]> {
   const params = new URLSearchParams();
-  if (query.employeeId) params.set("employeeId", query.employeeId);
+  if (query.employeeId?.trim()) params.set("employeeId", query.employeeId.trim());
   if (query.budgetYear != null) params.set("budgetYear", String(query.budgetYear));
   return request<Budget[]>(`${BASE}/budgets?${params.toString()}`);
 }
@@ -86,21 +86,9 @@ export async function batchAddToWhitelist(data: WhitelistBatchAddData): Promise<
 // ==================== Import ====================
 
 export async function uploadImportFile(file: File): Promise<ImportResult> {
-  try {
-    const formData = new FormData();
-    formData.append("file", file);
-    const res = await fetch(`/api${BASE}/import`, {
-      method: "POST",
-      body: formData,
-    });
-    if (!res.ok) throw new Error(`Import upload failed: ${res.status}`);
-    const json = await res.json();
-    if (json.code !== 0) throw new Error(json.message || "Import failed");
-    return json.data;
-  } catch (err: any) {
-    const message = err?.message || "文件上传失败，请检查网络后重试";
-    throw new Error(message);
-  }
+  const formData = new FormData();
+  formData.append("file", file);
+  return requestFormData<ImportResult>(`${BASE}/import`, formData);
 }
 
 export async function getImportResult(taskId: string): Promise<ImportResult> {

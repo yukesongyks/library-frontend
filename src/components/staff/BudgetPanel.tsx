@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Table, Button, Form, Input, InputNumber, Select, Modal, Card, Row, Col, Statistic, message, Space } from "antd";
 import { getBudgets, createBudget, updateBudget, getBudgetSummary } from "../../api/staffApi";
 import type { Budget, BudgetFormData, BudgetSummaryItem } from "../../types/staff";
@@ -11,12 +11,25 @@ export default function BudgetPanel() {
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [form] = Form.useForm<BudgetFormData>();
   const [filterEmployeeId, setFilterEmployeeId] = useState<string>("");
+  // M-03 fix: debounced filter value to avoid per-keystroke API calls
+  const [debouncedFilter, setDebouncedFilter] = useState<string>("");
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      setDebouncedFilter(filterEmployeeId);
+    }, 400);
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [filterEmployeeId]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const [budgetData, summaryData] = await Promise.all([
-        getBudgets(filterEmployeeId ? { employeeId: filterEmployeeId } : {}),
+        getBudgets(debouncedFilter ? { employeeId: debouncedFilter } : {}),
         getBudgetSummary(),
       ]);
       setBudgets(budgetData);
@@ -26,7 +39,7 @@ export default function BudgetPanel() {
     } finally {
       setLoading(false);
     }
-  }, [filterEmployeeId]);
+  }, [debouncedFilter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
