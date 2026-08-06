@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Table, Button, Space, Input, Popconfirm, message, Tag } from "antd";
+import { Table, Button, Space, Input, Popconfirm, message, Tag, Modal } from "antd";
 import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from "../../api/staffApi";
@@ -39,14 +39,22 @@ export default function EmployeeList() {
     setModalOpen(true);
   };
 
-  const handleDelete = async (id: number) => {
-    try {
-      await deleteEmployee(id);
-      message.success("删除成功");
-      fetchData();
-    } catch (err: any) {
-      message.error(err?.message || "删除失败");
-    }
+  const handleDelete = (id: number) => {
+    Modal.confirm({
+      title: "确认删除",
+      content: "确定要删除该员工吗？此操作不可撤销。",
+      okText: "确认",
+      cancelText: "取消",
+      onOk: async () => {
+        try {
+          await deleteEmployee(id);
+          message.success("删除成功");
+          fetchData();
+        } catch (err: any) {
+          message.error(err?.message || "删除失败");
+        }
+      },
+    });
   };
 
   const handleSubmit = async (formData: EmployeeFormData) => {

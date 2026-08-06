@@ -66,7 +66,7 @@ export default function BudgetPanel() {
         {summary.slice(0, 4).map((item) => (
           <Col span={6} key={`${item.department}-${item.year}`}>
             <Card size="small">
-              <Statistic title={`${item.department} (${item.year})`} value={item.totalAmount} precision={2} suffix="CNY" />
+              <Statistic title={`${item.department} (${item.year})`} value={item.totalAmount ?? 0} precision={2} suffix="CNY" />
               <div style={{ fontSize: 12, color: "#999" }}>{item.employeeCount} 人</div>
             </Card>
           </Col>
@@ -88,7 +88,7 @@ export default function BudgetPanel() {
           { title: "工号", dataIndex: "employeeId", width: 100 },
           { title: "年度", dataIndex: "budgetYear", width: 80 },
           { title: "月份", dataIndex: "budgetMonth", width: 80, render: (v: number | null) => v ?? "全年" },
-          { title: "金额", dataIndex: "amount", width: 120, render: (v: number) => v.toFixed(2) },
+          { title: "金额", dataIndex: "amount", width: 120, render: (v: number) => (v != null ? v.toFixed(2) : "0.00") },
           { title: "币种", dataIndex: "currency", width: 60 },
           { title: "更新时间", dataIndex: "updatedAt", width: 180 },
           {

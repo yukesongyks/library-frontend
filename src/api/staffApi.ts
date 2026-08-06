@@ -86,16 +86,21 @@ export async function batchAddToWhitelist(data: WhitelistBatchAddData): Promise<
 // ==================== Import ====================
 
 export async function uploadImportFile(file: File): Promise<ImportResult> {
-  const formData = new FormData();
-  formData.append("file", file);
-  const res = await fetch(`/api${BASE}/import`, {
-    method: "POST",
-    body: formData,
-  });
-  if (!res.ok) throw new Error(`Import upload failed: ${res.status}`);
-  const json = await res.json();
-  if (json.code !== 0) throw new Error(json.message || "Import failed");
-  return json.data;
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`/api${BASE}/import`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) throw new Error(`Import upload failed: ${res.status}`);
+    const json = await res.json();
+    if (json.code !== 0) throw new Error(json.message || "Import failed");
+    return json.data;
+  } catch (err: any) {
+    const message = err?.message || "文件上传失败，请检查网络后重试";
+    throw new Error(message);
+  }
 }
 
 export async function getImportResult(taskId: string): Promise<ImportResult> {

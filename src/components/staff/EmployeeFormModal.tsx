@@ -47,7 +47,7 @@ export default function EmployeeFormModal({ open, editingEmployee, onCancel, onS
       width={640}
     >
       <Form form={form} layout="vertical">
-        <Form.Item name="employeeId" label="工号" rules={[{ required: true, message: "请输入工号" }]}>
+        <Form.Item name="employeeId" label="工号" rules={[{ required: true, message: "请输入工号" }, { whitespace: true, message: "工号不能为纯空格" }]}>
           <Input disabled={!!editingEmployee} placeholder="请输入工号" />
         </Form.Item>
         <Form.Item name="name" label="姓名" rules={[{ required: true, message: "请输入姓名" }]}>
@@ -62,7 +62,7 @@ export default function EmployeeFormModal({ open, editingEmployee, onCancel, onS
         <Form.Item name="hireDate" label="入职日期" rules={[{ required: true, message: "请选择入职日期" }]}>
           <DatePicker style={{ width: "100%" }} placeholder="请选择日期" />
         </Form.Item>
-        <Form.Item name="contactInfo" label="联系方式" rules={[{ required: true, message: "请输入联系方式" }]}>
+        <Form.Item name="contactInfo" label="联系方式" rules={[{ required: true, message: "请输入联系方式" }, { pattern: /^1[3-9]\d{9}$|^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "请输入有效的手机号或邮箱" }]}>
           <Input placeholder="手机号或邮箱" />
         </Form.Item>
         <Form.Item name="skills" label="技能标签">
