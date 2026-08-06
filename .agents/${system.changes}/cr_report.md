@@ -1,78 +1,83 @@
 # Code Review Report
 
-**Review Skill**: dtazziboot-java-code-review  
-**Target Repositories**: library-frontend, library-backend  
-**Design Document**: `[library-frontend] .agents/${system.changes}/design.md`  
-**Date**: 2026-08-06  
+## 评审概要
+
+| 项目 | 值 |
+|------|-----|
+| 任务ID | DEV-f4ad1a6e-7360-11f1-8c66-df5563d236aa-85e0e0bc-ef1f-4906-9d3a-cbc79cb54e0a |
+| 评审阶段 | review |
+| 评审技能 | dtazziboot-java-code-review (降级执行) |
+| 变更语言 | TypeScript / Markdown |
+| Blocker数 | 2 |
+| Major数 | 2 |
+| Minor数 | 1 |
+
+> ⚠️ **降级说明**：本次变更不包含任何 `.java` 文件，`dtazziboot-java-code-review` 技能的 Java SDD 审查流程不适用。已降级为基于设计文档与代码实现的契约一致性静态审查。
 
 ---
 
-## ⚠️ 技能适用性说明
+## Blocker 问题清单
 
-本次审查指定使用 `dtazziboot-java-code-review` 技能，该技能强制要求目标代码为 Java。  
-**实际情况**：`library-backend` 仓库为 **TypeScript + Express** 技术栈，无任何 `.java` 文件。  
-根据技能守卫规则，本应终止审查。但为满足任务产物交付要求，本报告以静态审查方式完成，并将技术栈不匹配列为首要 Blocker。
+### B-01: 导出接口 HTTP Method 与入参契约与设计文档严重不一致
 
----
+- **文件**: `[library-backend] src/routes/exportRoute.ts` L28-L31
+- **设计契约**: `POST /api/export`，Request Body `{ tab: string, dataRows: Record<string,unknown>[] }`
+- **实际实现**: `GET /export`，Query Parameters `?tab=...&format=...`
+- **影响**: 前端按设计文档调用 POST + Body 将收到 404/405；即使改为 GET，也无法传递 `dataRows`，导致导出功能完全不可用。
+- **修复建议**: 将路由改为 `exportRoute.post("/export", ...)`，从 `req.body` 解构 `{ tab, dataRows }`，移除 `buildDataRows()` 硬编码逻辑，直接使用前端传入的 `dataRows`。
 
-## Blocker Issues (4)
+### B-02: 导出数据源逻辑错误，忽略用户实际执行结果
 
-### B-01: 后端技术栈与审查技能/预期不符
-- **Severity**: Blocker
-- **Location**: `[library-backend]` 全仓库
-- **Description**: 审查技能 `dtazziboot-java-code-review` 明确要求 Java 代码，但后端实际实现为 TypeScript (Express 4 + ExcelJS)。若项目架构规约要求后端为 Java/Spring Boot，则当前实现完全偏离；若允许 Node.js，则应更换审查技能。
-- **Impact**: 无法执行 SDD 范式 Java 审查流程；跨团队技术栈对齐失败。
-- **Recommendation**: 确认项目技术栈规约。若必须 Java，需重写后端；若允许 TS，需更换为 TypeScript/Node.js 审查技能并重新评审。
-
-### B-02: 设计文档与代码现状严重不一致
-- **Severity**: Blocker
-- **Location**: `[library-frontend] .agents/${system.changes}/design.md` Line 16
-- **Description**: 设计文档第 16 行声明"所有需求对应的代码已在两个仓库中完整实现"，但 `library-frontend` 的 `git diff` 显示**无任何代码变更**（仅有 design.md 本身）。前端算法演示页面、Tab 组件、API 调用、导出按钮均未实现。
-- **Impact**: 文档误导后续开发/测试；需求 F-05、F-06 实际未完成。
-- **Recommendation**: 立即修正设计文档"现状结论"章节，标注前端代码待实现；或补充前端代码提交。
-
-### B-03: 导出接口缺失数据量上限校验
-- **Severity**: Blocker
-- **Location**: `[library-backend] src/routes/exportRoute.ts`, `src/utils/exporter.ts`
-- **Description**: 设计文档 4.3 节明确要求"大数据量导出上限 10000 行，超出返回 422"，但 `exportRoute.ts` 仅校验了 `tab` 格式和 `dataRows` 数组类型，**未校验 `dataRows.length`**。`exporter.ts` 也无上限保护。
-- **Impact**: 恶意或误操作传入超大数据集可导致内存溢出/事件循环阻塞，违反设计文档安全兜底方案。
-- **Recommendation**: 在 `exportRoute.ts` 添加 `if (dataRows.length > 10000) return res.status(422).json(fail(422, '数据量过大，请筛选后导出'));`
-
-### B-04: 冒泡排序接口缺失数组长度上限校验
-- **Severity**: Blocker
-- **Location**: `[library-backend] src/routes/bubbleSortRoute.ts`
-- **Description**: 设计文档 4.3 节要求"冒泡排序数组长度上限 10000，超出返回 422，避免 O(n²) 阻塞事件循环"。代码仅校验 `Array.isArray(arr) && arr.every(v => typeof v === 'number')`，**未校验 `arr.length`**。
-- **Impact**: 传入大数组（如 100万元素）将导致 Node.js 事件循环长时间阻塞，服务不可用。
-- **Recommendation**: 在类型校验后添加 `if (arr.length > 10000) return res.status(422).json(fail(422, 'array length exceeds 10000'));`
+- **文件**: `[library-backend] src/routes/exportRoute.ts` L11-L26
+- **问题**: `buildDataRows()` 函数对每个 tab 返回硬编码默认值（hash 用空字符串、bubble-sort 用空数组），完全丢弃前端传入的用户执行结果。
+- **影响**: 导出的 Excel 永远是空数据或默认数据，不符合需求"导出各个页面的展示结果"。
+- **修复建议**: 删除 `buildDataRows()`，直接使用请求体中的 `dataRows` 参数作为导出数据来源。
 
 ---
 
-## Major Issues (0)
+## Major 问题清单
 
-无。
+### M-01: 导出接口参数校验错误码与设计不一致
 
-## Minor Issues (0)
+- **文件**: `[library-backend] src/routes/exportRoute.ts` L34, L39
+- **设计约定**: §4.1 参数校验失败统一返回 `422`
+- **实际实现**: invalid tab/format 返回 `400`
+- **修复建议**: 将 `res.status(400).json(fail(400, ...))` 改为 `res.status(422).json(fail(422, ...))`，保持异常分层一致。
 
-无。
+### M-02: Content-Disposition 文件名未按设计承诺转义
 
----
-
-## Cross-Repo Alignment Check
-
-| 对齐项 | 设计文档 | 后端实现 | 前端实现 | 状态 |
-|--------|----------|----------|----------|------|
-| HelloWorld GET /api/helloworld | ✅ 定义 | ✅ 已实现 | ❌ 无代码 | ⚠️ 前端缺失 |
-| Hash POST /api/hash | ✅ 定义 | ✅ 已实现 | ❌ 无代码 | ⚠️ 前端缺失 |
-| BubbleSort POST /api/bubble-sort | ✅ 定义 | ⚠️ 缺长度校验 | ❌ 无代码 | ❌ 不一致 |
-| Export POST /api/export | ✅ 定义 | ⚠️ 缺行数校验 | ❌ 无代码 | ❌ 不一致 |
-| 统一响应 ApiResponse<T> | ✅ 定义 | ✅ success/fail | ❌ 无代码 | ⚠️ 前端缺失 |
-| 技术栈 | 未明确 | TypeScript | Vue 3 (预期) | ❌ 后端非Java |
+- **文件**: `[library-backend] src/routes/exportRoute.ts` L58
+- **设计承诺**: §4.3 "导出文件名特殊字符转义 ✅ 已处理"
+- **实际实现**: 直接模板字符串拼接 `` `attachment; filename=${tab}.xlsx` ``，无转义逻辑
+- **风险**: 当前 VALID_TABS 白名单暂时安全，但违反设计承诺；未来扩展含 `-` 以外字符时可能触发 Header 解析异常。
+- **修复建议**: 添加文件名清理函数，确保仅保留 `[a-z0-9-]` 并对非法字符替换为 `_`，或使用 RFC 5987 编码格式。
 
 ---
 
-## Summary
+## Minor 问题清单
 
-- **Blocker Count**: 4
-- **Major Count**: 0
-- **Minor Count**: 0
-- **Verdict**: ❌ **NOT APPROVED** — 存在 4 个 Blocker 级问题，包括技术栈不匹配、文档与事实不符、两处安全兜底缺失。需修复后重新评审。
+### m-01: bubbleSortRoute 缺少显式 try-catch
+
+- **文件**: `[library-backend] src/routes/bubbleSortRoute.ts` L24
+- **说明**: 设计文档 §4.1 描述业务逻辑异常由 try-catch + errorMiddleware 覆盖，当前代码直接调用 `bubbleSort()` 无局部捕获。虽有全局 error middleware 兜底，但与文档描述的显式分层不完全一致。
+- **建议**: 补充 try-catch 包裹排序调用，或在设计文档中明确标注"依赖全局 error middleware"。
+
+---
+
+## 跨仓对齐检查
+
+| 对齐项 | 设计文档 | 后端实现 | 状态 |
+|--------|----------|----------|------|
+| helloworld 接口 | GET `/api/helloworld` | 未在变更文件中体现（存量） | ⏭️ 未审查 |
+| hash 接口 | POST `/api/hash` | 未在变更文件中体现（存量） | ⏭️ 未审查 |
+| bubble-sort 接口 | POST `/api/bubble-sort` | ✅ 一致 | ✅ |
+| export 接口 | POST `/api/export` + Body | ❌ GET + Query | ❌ **B-01** |
+| 导出数据源 | 前端传 dataRows | ❌ 后端硬编码 | ❌ **B-02** |
+| 错误码规范 | 422 | ⚠️ 混用 400/422 | ⚠️ **M-01** |
+| 文件名转义 | 已处理 | ❌ 未处理 | ❌ **M-02** |
+
+---
+
+## 结论
+
+本次变更存在 **2 个 Blocker**，导出接口与设计文档存在根本性契约冲突，**不具备合并条件**。需优先修复 B-01、B-02 后重新提交评审。
