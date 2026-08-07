@@ -1,0 +1,57 @@
+/* 全局样式 */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', Arial, sans-serif;
+  color: #303133;
+  background-color: #f0f2f5;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: #c0c4cc;
+}
+
+::-webkit-scrollbar-track {
+  background: #f4f4f5;
+}
+
+/* 卡片间距 */
+.cost-card {
+  margin-bottom: 16px;
+}
+
+/* 表格容器 */
+.table-container {
+  background: #fff;
+  border-radius: 4px;
+  padding: 16px;
+}
+
+/* 空数据占位 */
+.empty-placeholder {
+  text-align: center;
+  padding: 40px 0;
+  color: #909399;
+  font-size: 14px;
+}
