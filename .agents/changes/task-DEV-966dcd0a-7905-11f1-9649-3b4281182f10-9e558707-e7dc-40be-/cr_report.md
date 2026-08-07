@@ -1,359 +1,286 @@
 # 代码评审报告 (Code Review Report)
 
-> **技能**: /code-review-skill  
-> **审查范围**: `library-frontend` (React 18 + TypeScript + Vite + Ant Design 5 + ECharts) 与 `library-backend` (Spring Boot 3.2.5 / Java 17 + Spring Data JPA + H2 + AOP)  
-> **需求**: 三算法接口(helloworld/hash/bubblesort) + 前端三Tab页面 + 导出按钮/接口 + 后端埋点(AOP) + 前端可视化报表(折线/饼/柱)  
-> **审查日期**: 2026-08-07  
-> **Blocker 数量**: 4  
+> **评审阶段**: review（对问题修复后的代码进行评审）  
+> **评审日期**: 2026-08-07  
+> **评审技能**: /code-review-skill  
+> **评审范围**: library-frontend + library-backend 全部 review 阶段修复文件  
+> **blocker_count**: 0
 
 ---
 
-## 一、通览 (Overview)
+## 一、评审概览
 
-本次变更在两个仓库中完整实现了需求链条：
+本次评审针对 review 阶段"问题修复"后前后端全部源文件，验证上一轮发现的 4 个 blocker（B1-B4）是否已正确修复，并检查是否引入新问题。
 
-| 仓库 | 改动文件数 | 核心改动 |
-|------|-----------|---------|
-| library-backend | 17 文件 (+1731 行) | AlgoService 三算法、AlgoController 三接口、ExportController CSV 导出、CallLogAspect AOP 埋点、CallLogController 统计聚合、AppUser/CallLog 实体、CallLogRepository 维度统计 SQL |
-| library-frontend | 9 源码文件 (+213 行, 剔除 node_modules) | AlgoPage 三 Tab、HelloWorldTab/HashTab/BubbleSortTab、CallReport ECharts 可视化、api/index.ts 封装、types 定义 |
+### 评审文件清单
 
-**跨仓契约对齐**: 前端 `X-User-Id: U001` 请求头 ↔ 后端 `resolveCallerId()` 读取；前端 `AlgoResult{apiName,input,output,durationMs}` ↔ 后端 `record AlgoResult`；前端 `CallStats=Record<string,CallStatRow[]>` ↔ 后端 `Map<String,List<CallStatRow>>`；导出路由 `/api/export/{apiName}` 前后端一致。
+**library-frontend (7 文件)**:
+- `src/api/index.ts`
+- `src/types/index.ts`
+- `src/components/HelloWorldTab.tsx`
+- `src/components/HashTab.tsx`
+- `src/components/BubbleSortTab.tsx`
+- `src/components/CallReport.tsx`
+- `src/App.tsx`（关联读取）
 
----
-
-## 二、审查发现 (Findings)
-
-### 严重级别说明
-- **Blocker (B)**: 必须修复，存在安全/数据正确性/生产可用性风险
-- **Major (M)**: 强烈建议修复，影响健壮性或可维护性
-- **Minor (m)**: 改进建议
-
----
-
-### [library-backend] B1 — AOP 埋点吞没异常且不记录失败调用
-
-**文件**: `[library-backend] src/main/java/com/library/aspect/CallLogAspect.java`  
-**级别**: Blocker  
-**行**: `} catch (Exception ignored) {}`
-
-```java
-@Around("execution(* com.library.controller..*.*(..))")
-public Object logCall(ProceedingJoinPoint pjp) throws Throwable {
-    Object result = pjp.proceed();   // ← 业务异常会直接抛出，埋点不执行
-    try {
-        // ... 保存 CallLog
-    } catch (Exception ignored) {     // ← 埋点自身异常被静默吞没
-    }
-    return result;
-}
-```
-
-**问题**:
-1. `pjp.proceed()` 在 try 块之外——当业务方法抛异常时，**埋点逻辑完全不执行**，失败调用永远不会被记录。需求要求"获取调用次数和调用人"，失败调用也是调用，应被统计。
-2. 内层 `catch (Exception ignored)` 静默吞没所有埋点异常（如 DB 连接失败），无任何日志，排障困难。
-3. `resolveCallerId()` 在无 HTTP 上下文时硬编码返回 `"U001"`，生产环境下无法区分真实调用者。
-
-**修复建议**:
-- 将 `pjp.proceed()` 移入 try 内，或在 `finally` 中执行埋点（区分成功/失败状态）。
-- 埋点 catch 块至少 `log.warn("埋点失败", e)`。
-- 无用户标识时应返回 `"ANONYMOUS"` 而非伪造 `"U001"`。
+**library-backend (10 文件)**:
+- `src/main/java/com/library/controller/AlgoController.java`
+- `src/main/java/com/library/controller/CallLogController.java`
+- `src/main/java/com/library/controller/ExportController.java`
+- `src/main/java/com/library/service/AlgoService.java`
+- `src/main/java/com/library/aspect/CallLogAspect.java`
+- `src/main/java/com/library/entity/CallLog.java`
+- `src/main/java/com/library/entity/AppUser.java`
+- `src/main/java/com/library/repository/CallLogRepository.java`
+- `src/main/java/com/library/repository/AppUserRepository.java`
+- `src/main/java/com/library/dto/AlgoResult.java` / `CallStatRow.java`
 
 ---
 
-### [library-backend] B2 — `parseInput` 未处理非法输入，`NumberFormatException` 直接抛 500
+## 二、上一轮 Blocker 修复验证
 
-**文件**: `[library-backend] src/main/java/com/library/service/AlgoService.java`  
-**级别**: Blocker  
-**行**: `arr.add(Integer.parseInt(p.trim()));`
+### B1: 埋点异常处理 / NoSuchAlgorithmException / ANONYMOUS 用户标识 — ✅ 已修复
 
-```java
-private List<Integer> parseInput(String input) {
-    String[] parts = input.split(",");
-    List<Integer> arr = new ArrayList<>();
-    for (String p : parts) {
-        arr.add(Integer.parseInt(p.trim()));  // ← 非数字/空字符串直接抛 NumberFormatException
-    }
-    return arr;
-}
-```
+| 文件 | 修复点 | 验证结论 |
+|------|--------|----------|
+| [library-backend] `AlgoService.java` | `NoSuchAlgorithmException` 改为抛 `IllegalStateException`（语义为"不应发生"） | ✅ 正确。SHA-256 是 JRE 标准算法，用 IllegalStateException 表达不可恢复的环境异常，优于泛化 RuntimeException |
+| [library-backend] `CallLogAspect.java` | `resolveCallerId()` 无 `X-User-Id` 时返回 `"ANONYMOUS"` 而非伪造 `U001` | ✅ 正确。不再硬编码用户身份 |
+| [library-backend] `CallLogAspect.java` | `finally` 块中执行埋点，区分 `success`/`error` 状态；埋点自身异常用 `log.warn` 记录 | ✅ 正确。业务异常后仍记录埋点，不再静默吞没 |
 
-**问题**: 用户输入 `5,,3` 或 `abc` 时抛 `NumberFormatException`，Spring 默认返回 500 Internal Server Error。前端 `BubbleSortTab` 的 Input 无任何输入校验，用户极易触发。
+### B2: 非法输入处理 — ✅ 已修复
 
-**修复建议**: 使用 try-catch 或 `NumberFormatException` 检查，返回 400 Bad Request + 友好错误消息，或过滤非法元素。
+| 文件 | 修复点 | 验证结论 |
+|------|--------|----------|
+| [library-backend] `AlgoService.java` | `parseInput()` 对空输入抛 `IllegalArgumentException`；非法数字抛 `IllegalArgumentException`；过滤空字符串元素；空数组抛异常 | ✅ 正确。Spring 自动将 IllegalArgumentException 映射为 400 响应，前端能收到错误 |
 
----
+### B3: 导出接口安全 — ✅ 已修复
 
-### [library-backend] B3 — CSV 导出存在注入风险且未转义
+| 文件 | 修复点 | 验证结论 |
+|------|--------|----------|
+| [library-backend] `ExportController.java` | apiName 白名单校验（`List.of("helloworld","hash","bubblesort")`） | ✅ 正确。防止路径遍历/响应头注入 |
+| [library-backend] `ExportController.java` | `Content-Disposition` filename 使用 RFC 5987 编码（`URLEncoder.encode` + `+`→`%20`） | ✅ 正确。防止非 ASCII 文件名注入 |
+| [library-backend] `ExportController.java` | `csvEscape()` 统一 CSV 转义：公式前缀(`=,+,-,@,TAB,CR`)前加单引号；含逗号/引号/换行时双引号包裹并内部引号双写 | ✅ 正确。防止 CSV 公式注入和字段分隔错误 |
 
-**文件**: `[library-backend] src/main/java/com/library/controller/ExportController.java`  
-**级别**: Blocker  
-**行**: `writer.println(r.apiName() + "," + r.input() + "," + r.output() + "," + r.durationMs());`
+### B4: AOP 切入范围 — ✅ 已修复
 
-```java
-case "helloworld" -> {
-    AlgoResult r = algoService.helloworld();
-    writer.println("apiName,input,output,durationMs");
-    writer.println(r.apiName() + "," + r.input() + "," + r.output() + "," + r.durationMs());
-}
-case "hash" -> {
-    AlgoResult r = algoService.hash(input);
-    writer.println(r.apiName() + "," + r.input() + "," + r.output() + "," + r.durationMs());
-    // ← hash 的 input 来自用户，可能含逗号/引号/换行/公式(=、+、-、@)
-}
-```
-
-**问题**:
-1. `hash` 分支的 `input` 来自用户请求参数，直接拼入 CSV **未加引号**，含逗号会破坏列结构。
-2. `bubblesort` 分支虽加了引号但未转义内部引号（`""` 转义），且 `input` 是 `List<Integer>` 的 `toString()` 输出 `[5, 3, 8]`——方括号和空格不合规。
-3. **CSV 公式注入**: 若用户 input 含 `=`、`+`、`-`、`@` 开头，Excel 打开时执行公式。
-4. `apiName` 来自 `@PathVariable`，`Content-Disposition` 的 filename 直接拼接 `apiName + ".csv"`，含特殊字符可能导致响应头注入。
-
-**修复建议**:
-- 使用 Apache Commons CSV 或统一 `csvEscape()` 工具方法对所有字段转义。
-- 对公式前缀字符前缀单引号 `'` 或制表符。
-- `Content-Disposition` filename 使用 RFC 5987 `filename*=UTF-8''...` 编码。
+| 文件 | 修复点 | 验证结论 |
+|------|--------|----------|
+| [library-backend] `CallLogAspect.java` | `@Around("execution(* com.library.controller.AlgoController.*(..))")` 仅切入 AlgoController | ✅ 正确。避免统计接口(`/api/stats`)和导出接口(`/api/export`)被埋点自污染 |
 
 ---
 
-### [library-backend] B4 — AOP 切入所有 Controller 导致统计接口自身也被埋点，且 ExportController 写流被埋点切面包裹
+## 三、逐文件功能核对
 
-**文件**: `[library-backend] src/main/java/com/library/aspect/CallLogAspect.java`  
-**级别**: Blocker  
-**切点**: `@Around("execution(* com.library.controller..*.*(..))")`
+### library-backend
 
-**问题**:
-1. 切点 `com.library.controller..*` 匹配所有 Controller 方法，包括 `CallLogController.stats()` 和 `ExportController.export()`。每次查看报表或导出都会被埋点，造成**统计自污染**——报表调用次数虚高。
-2. `ExportController.export()` 直接写 `HttpServletResponse` 的 `PrintWriter`，AOP `pjp.proceed()` 返回 `null`（void 方法），切面在 `result` 上无问题，但埋点发生在 `response.getWriter()` 写完后，若埋点 save 抛异常被 catch，response 状态已不可逆。
+#### `AlgoController.java` — ✅ 通过
+- 三个算法接口 `helloworld`/`hash`/`bubblesort` 均为 GET，路径 `/api/algo/*` ✓
+- 构造注入 AlgoService ✓
+- `@RequestParam(defaultValue = ...)` 提供默认值 ✓
+- 无多余业务逻辑，纯转发 ✓
 
-**修复建议**:
-- 切点限定到算法接口: `@Around("execution(* com.library.controller.AlgoController.*(..))")` 或用自定义注解 `@TrackCall`。
-- 排除 `CallLogController` 和 `ExportController`。
+#### `AlgoService.java` — ✅ 通过（含建议）
+- `helloworld()`: 返回 "Hello, World!"，计时 ✓
+- `hash()`: SHA-256 摘要 + 十六进制输出 ✓
+- `bubblesort()`: `parseInput` → `bubbleSort`（复制原数组排序）✓
+- `sha256()`: NoSuchAlgorithmException → IllegalStateException ✓ (B1)
+- `parseInput()`: 空输入/非法数字/空数组 → IllegalArgumentException ✓ (B2)
 
----
+> **建议 P3-1**: `sha256()` 中 `base.getBytes()` 未指定字符集，使用 JVM 默认字符集。不同服务器默认字符集可能不同（UTF-8 vs GBK），导致非 ASCII 输入的哈希结果跨环境不一致。建议改为 `base.getBytes(StandardCharsets.UTF_8)`。当前不影响 ASCII 输入的功能正确性。
 
-### [library-backend] M1 — `sha256` 用 `RuntimeException` 包装受检异常，丢失上下文
+#### `CallLogAspect.java` — ✅ 通过（含建议）
+- `@Around` 仅切入 AlgoController ✓ (B4)
+- `finally` 块埋点，区分 success/error ✓ (B1)
+- `resolveCallerId()` 从 `X-User-Id` header 读取，无则 ANONYMOUS ✓ (B1)
+- 埋点异常 `log.warn` 记录 ✓
+- 用户信息缺失时填充 "匿名"/"UNKNOWN" ✓
 
-**文件**: `[library-backend] src/main/java/com/library/service/AlgoService.java`  
-**级别**: Major  
-**行**: `} catch (Exception e) { throw new RuntimeException(e); }`
+> **建议 P3-2**: `pjp.getSignature().toShortString()` 返回方法签名格式（如 `AlgoController.helloworld()`），而非简单 apiName 字符串。当前 `findAllByDimensions` 不按 `api_name` 分组，不影响报表。但后续若按接口维度统计，`api_name` 列数据格式不统一会产生问题。建议改为提取方法名或显式映射。
 
-```java
-private String sha256(String base) {
-    try {
-        MessageDigest md = MessageDigest.getInstance("SHA-256");
-        // ...
-    } catch (Exception e) {
-        throw new RuntimeException(e);  // ← NoSuchAlgorithmException 实际不可能发生(SHA-256 是 JRE 标准)
-    }
-}
-```
+> **建议 P3-3**: 埋点 `callLogRepository.save()` 为同步 DB 写入，每次算法调用都会触发。高并发场景下可能成为性能瓶颈。当前演示场景无影响；生产环境建议改为异步队列写入。
 
-**问题**: `NoSuchAlgorithmException` 对 SHA-256 不会发生（JVM 规范保证），但用 `RuntimeException` 包装会丢失类型信息，调用方无法区分。  
-**修复建议**: 捕获 `NoSuchAlgorithmException` 后包装为 `IllegalStateException`（表示"不应发生"），或用 `Lombok @SneakyThrows`。
+#### `ExportController.java` — ✅ 通过
+- apiName 白名单校验 ✓ (B3)
+- Content-Disposition RFC 5987 编码 ✓ (B3)
+- CSV 转义（公式注入防护 + 特殊字符包裹）✓ (B3)
+- switch 分支覆盖三个算法 ✓
+- default 分支返回 404 ✓
 
----
+> **建议 P3-4**: `csvRow()` 中 `durationMs` 是 long 类型直接拼接（`+ durationMs`），未走 `csvEscape()`。数字不会有注入风险，但为一致性建议统一调用。
 
-### [library-backend] M2 — `CallLogController` 字段注入而非构造注入，且 `@Autowired` 可省略
+#### `CallLogController.java` — ✅ 通过
+- 构造注入 ✓ (M2)
+- `findAllByDimensions()` 返回结果按 dimension 分组，预初始化三个 key ✓ (M3)
+- NULL 值防御 `r[1] != null ? (String) r[1] : "UNKNOWN"` ✓ (M3)
+- `computeIfAbsent` 防御未预期 dimension ✓ (M3)
 
-**文件**: `[library-backend] src/main/java/com/library/controller/CallLogController.java`  
-**级别**: Major  
-**行**: `@Autowired private CallLogRepository callLogRepository;`
+#### `CallLogRepository.java` — ✅ 通过
+- native query UNION ALL 三维度 ✓
+- `COALESCE(c.user_type, 'UNKNOWN')` 处理 NULL ✓
+- `COUNT(*)` 按维度分组 ✓
 
-**问题**: 项目其他类（AlgoController、ExportController、CallLogAspect）均使用构造注入，唯独此类用字段注入，风格不一致且不利于测试。Spring 4.3+ 单构造器可省略 `@Autowired`。  
-**修复建议**: 改为构造注入，删除 `@Autowired`。
+#### `CallLog.java` / `AppUser.java` — ✅ 通过
+- JPA 实体定义，字段完整，getter/setter 规范 ✓
 
----
+> **建议 P3-5**: `CallLog.success` 使用 `Boolean`（包装类）而非 `boolean`。CallLogAspect 中 `success` 初始为 `true` 不会为 null，但数据库列允许 NULL。若其他写入路径产生 null，前端/查询可能出现 NPE。建议改用原生 `boolean` 或在查询时防御。
 
-### [library-backend] M3 — native SQL UNION ALL 缺少 NULL 值处理与维度硬编码
-
-**文件**: `[library-backend] src/main/java/com/library/repository/CallLogRepository.java`  
-**级别**: Major
-
-```sql
-SELECT 'userType' AS dimension, c.user_type AS value, COUNT(*) AS cnt
-FROM call_log c GROUP BY c.user_type
-UNION ALL
-SELECT 'userLevel', c.user_level, COUNT(*)
-FROM call_log c GROUP BY c.user_level
-UNION ALL
-SELECT 'department', c.department, COUNT(*)
-FROM call_log c GROUP BY c.department
-```
-
-**问题**:
-1. 若 `user_type` 等列为 NULL，`value` 为 NULL，前端 `CallStatRow.value` 为 null 会渲染异常。
-2. 维度维度硬编码在 SQL 中，新增维度需改 SQL。
-3. `CallLogController.stats()` 用 `grouped.get(row.dimension())` 但未防御 SQL 返回未预期 dimension 时的 NPE。
-
-**修复建议**: SQL 中 `COALESCE(c.user_type, 'UNKNOWN')`，或 Controller 端 `grouped.computeIfAbsent`。
+#### `AlgoResult.java` / `CallStatRow.java` — ✅ 通过
+- record 定义简洁 ✓
+- 字段与前端类型对齐 ✓
 
 ---
 
-### [library-frontend] M4 — `CallReport` ECharts 实例未在组件卸载时销毁
+### library-frontend
 
-**文件**: `[library-frontend] src/components/CallReport.tsx`  
-**级别**: Major
+#### `src/api/index.ts` — ✅ 通过
+- axios 实例 + 请求拦截器设置 `X-User-Id` header ✓
+- `getUserId()`/`setUserId()` 从 localStorage 读写 ✓ (M5)
+- 五个 API 函数覆盖算法调用/统计/导出 ✓
+- `exportUrl()` 返回导出 URL ✓
 
-```typescript
-useEffect(() => {
-    if (!chartRef.current || !stats) return
-    if (!chartInstance.current) {
-        chartInstance.current = echarts.init(chartRef.current)
-    }
-    // ... setOption
-}, [stats, dim, chartType])
-```
+> **建议 P3-6**: `getUserId()` 默认返回 `'U001'`（localStorage 无值时）。前端拦截器始终设置 X-User-Id 至少为 U001，后端 `ANONYMOUS` 分支实际不会触发。当前演示场景无影响，但匿名调用场景被前端屏蔽。
 
-**问题**: 缺少 cleanup effect 销毁 ECharts 实例。组件卸载时 `echarts.init` 创建的 DOM 监听器和 timer 不会被回收，造成内存泄漏。React 18 StrictMode 下双重挂载会创建两个实例。  
-**修复建议**:
-```typescript
-useEffect(() => {
-    return () => {
-        chartInstance.current?.dispose()
-        chartInstance.current = null
-    }
-}, [])
-```
+> **建议 P3-7**: `exportUrl(apiName)` 未对 apiName 做 URL 编码。当前 apiName 来自硬编码字符串（'helloworld'/'hash'/'bubblesort'），无特殊字符，但缺少防御。
 
----
+#### `src/types/index.ts` — ✅ 通过
+- `AlgoResult` 接口与后端 record 对齐 ✓
+- `formatOutput()` 统一格式化（数组 join，其他 String）✓ (M6)
+- `CallStatRow` / `CallStats` 与后端契约对齐 ✓
 
-### [library-frontend] M5 — axios 拦截器硬编码 `X-User-Id: U001`，无真实用户认证
+#### `src/components/HelloWorldTab.tsx` — ✅ 通过
+- 执行按钮调用 `callHello()` ✓
+- 导出按钮不依赖 result，始终可用 ✓ (m3)
+- loading 状态管理 ✓
+- catch 块无 error 参数（符合 eslint）✓
 
-**文件**: `[library-frontend] src/api/index.ts`  
-**级别**: Major
+#### `src/components/HashTab.tsx` — ✅ 通过（含建议）
+- 输入框 + 执行 + 导出 ✓
+- 导出 URL 拼接 input 参数并 `encodeURIComponent` ✓
 
-```typescript
-client.interceptors.request.use((config) => {
-    config.headers['X-User-Id'] = 'U001'  // ← 全部请求伪造为 U001
-    return config
-})
-```
+> **建议 P3-8**: 导出按钮 `disabled={!result}`，而 HelloWorldTab 导出始终可用。UX 一致性问题。HashTab 导出时使用当前 input 值，不需要先执行，`disabled` 限制不必要。
 
-**问题**: 所有请求伪造为 `U001`，埋点维度（人员类型/层级/部门）将永远只显示张三/STUDENT/L1/研发部，报表无业务价值。需求要求"根据不同的维度：人员类型、人员层级、人员部门"展示，当前实现无法满足。  
-**修复建议**: 接入真实登录态或提供用户切换 UI。
+#### `src/components/BubbleSortTab.tsx` — ✅ 通过（含建议）
+- 参数名统一为 `input` ✓ (m1)
+- 导出 URL 拼接 input 参数 ✓
 
----
+> **建议 P3-8（同上）**: 导出按钮 `disabled={!result}` 与 HelloWorldTab 不一致。
 
-### [library-frontend] M6 — 前端 `AlgoResult.output` 类型与后端实际返回不匹配
+#### `src/components/CallReport.tsx` — ✅ 通过（含建议）
+- ECharts 实例管理：创建 + 卸载时 `dispose()` ✓ (M4)
+- 用户切换 Select（5 个选项）✓ (M5)
+- 维度切换 Segmented（userType/userLevel/department）✓
+- 图表类型切换 Segmented（line/pie/bar）✓
+- 加载错误处理 `message.error` ✓ (m2)
+- 图表 option 按 chartType 分支构建 ✓
 
-**文件**: `[library-frontend] src/types/index.ts`  
-**级别**: Major
+> **建议 P3-9**: `Select value={getUserId()}` 在每次渲染时调用 `getUserId()`，非 React 响应式模式。切换用户后 `loadStats()` 触发重渲染使 value 更新，功能正确但模式不惯用。建议用 useState 管理 userId。
 
-```typescript
-export interface AlgoResult {
-    apiName: string
-    input: number[] | string | null
-    output: string | number[]   // ← bubblesort 返回 List<Integer>，JSON 数组，但类型是 number[]
-    durationMs: number
-}
-```
+> **建议 P3-10**: 无 window resize 监听，窗口大小变化时 ECharts 图表不自适应。建议添加 `ResizeObserver` 或 `window.addEventListener('resize', () => chartInstance.current?.resize())`。
 
-**问题**: 后端 `bubblesort` 的 `output` 是 `List<Integer>` 序列化为 JSON 数组 `[1,2,3]`，前端类型 `number[]` 匹配；但 `hash` 的 `output` 是 64 位 hex 字符串，`helloworld` 是短字符串——`string` 覆盖。但前端渲染用 `String(result.output)`，对数组会输出 `"1,2,3"`（带逗号），而非 `[1,2,3]`。`BubbleSortTab` 显示 `输出：1,3,8,9` 不直观。  
-**修复建议**: 数组输出用 `JSON.stringify` 或 `[...].join(', ')`。
+#### `src/App.tsx` — ✅ 通过
+- ConfigProvider + zhCN 中文 locale ✓
+- 渲染 AlgoPage ✓
 
 ---
 
-### [library-frontend] m1 — `BubbleSortTab` 导出 URL 参数名 `sortInput` 与后端 `@RequestParam` 一致但与 `HashTab` 的 `input` 不一致
+## 四、跨仓对齐点检查
 
-**文件**: `[library-frontend] src/components/BubbleSortTab.tsx`  
-**级别**: Minor
-
-```typescript
-window.open(`${exportUrl('bubblesort')}?sortInput=${encodeURIComponent(input)}`, '_blank')
-```
-
-后端 `ExportController`: `@RequestParam(defaultValue = "5,3,8,1,9,2,7") String sortInput`。参数名一致，但与 `hash` 分支用 `input` 命名不统一，增加认知负担。  
-**修复建议**: 后端统一参数名为 `input`，三个导出分支一致。
-
----
-
-### [library-frontend] m2 — `CallReport` 组件挂载即拉取 stats，无刷新按钮和错误处理
-
-**文件**: `[library-frontend] src/components/CallReport.tsx`  
-**级别**: Minor
-
-```typescript
-useEffect(() => {
-    fetchStats().then(setStats)
-}, [])
-```
-
-**问题**: 无 catch 处理，接口失败时 `stats` 永远为 null，Spin 永转。无手动刷新入口。  
-**修复建议**: `.catch(err => message.error('报表加载失败'))` + 添加"刷新"按钮。
+| 契约项 | 后端 | 前端 | 对齐结论 |
+|--------|------|------|----------|
+| 算法接口路径 | `@RequestMapping("/api/algo")` + `/helloworld` `/hash` `/bubblesort` | `client.get('/algo/helloworld')` 等 | ✅ 对齐 |
+| 统计接口路径 | `@RequestMapping("/api/stats")` + `@GetMapping` | `client.get('/stats')` | ✅ 对齐 |
+| 导出接口路径 | `@RequestMapping("/api/export")` + `@GetMapping("/{apiName}")` | `exportUrl()` → `/api/export/${apiName}` | ✅ 对齐 |
+| AlgoResult 契约 | `record(String apiName, Object input, Object output, long durationMs)` | `interface { apiName, input: number[]|string|null, output: string|number[], durationMs: number }` | ✅ 对齐（input 为 Object，实际 null/String/List） |
+| CallStats 契约 | `Map<String, List<CallStatRow>>` (key: userType/userLevel/department) | `CallStats = Record<string, CallStatRow[]>` + `CallStatRow { dimension, value, count }` | ✅ 对齐 |
+| 用户标识传递 | `CallLogAspect` 读取 `X-User-Id` header | axios 拦截器设置 `X-User-Id` header | ✅ 对齐 |
+| 导出 input 参数 | `@RequestParam(defaultValue = "hello") String input` | `?input=${encodeURIComponent(input)}` | ✅ 对齐 |
+| 维度枚举 | SQL: `'userType'`/`'userLevel'`/`'department'` | TS: `'userType' | 'userLevel' | 'department'` | ✅ 对齐 |
 
 ---
 
-### [library-frontend] m3 — `HelloWorldTab` 导出按钮 `disabled={!result}` 但导出不依赖当前 result
+## 五、问题汇总
 
-**文件**: `[library-frontend] src/components/HelloWorldTab.tsx`  
-**级别**: Minor
+### Blocker 级别（阻断发布）— 0 项
 
-导出接口 `/api/export/helloworld` 无需 input 参数，后端独立调用 `algoService.helloworld()`。但前端 `disabled={!result}` 要求先执行才能导出，逻辑不一致。  
-**修复建议**: 导出按钮始终可用，或导出时复用已有 result。
+无。上一轮 4 个 blocker（B1-B4）已全部正确修复，未发现新的 blocker 级别问题。
 
----
+### 问题级别（建议修复，不阻断）— 10 项
 
-## 三、跨仓对齐点检查 (Cross-Repo Alignment)
-
-| 契约点 | 前端 | 后端 | 状态 |
-|--------|------|------|------|
-| 算法路由 | `/api/algo/{helloworld,hash,bubblesort}` | `@RequestMapping("/api/algo")` + `@GetMapping` | ✅ 一致 |
-| AlgoResult 字段 | `{apiName,input,output,durationMs}` | `record AlgoResult(String,Object,Object,long)` | ✅ 一致（但 `input` null 时前端 `String(null)`="null"） |
-| 导出路由 | `/api/export/{apiName}` | `@GetMapping("/{apiName}")` | ✅ 一致 |
-| 导出参数 | hash: `input`; bubblesort: `sortInput` | hash: `input`; bubblesort: `sortInput` | ✅ 一致 |
-| 统计接口 | `GET /stats` → `CallStats` | `GET /api/stats` → `Map<String,List<CallStatRow>>` | ✅ 一致（vite proxy `/api` → `:8080`） |
-| 用户标识 | `X-User-Id: U001` (硬编码) | `req.getHeader("X-User-Id")` → fallback `U001` | ⚠️ 双方都 fallback U001，报表维度单一 |
-| CallStatRow | `{dimension,value,count}` | `record CallStatRow(String,String,long)` | ✅ 一致 |
-| 维度枚举 | `'userType'|'userLevel'|'department'` | SQL 硬编码三个 dimension | ✅ 一致 |
+| 编号 | 级别 | 仓库 | 文件 | 描述 |
+|------|------|------|------|------|
+| P3-1 | 建议 | library-backend | `AlgoService.java` | `sha256()` 中 `base.getBytes()` 未指定字符集，建议用 `StandardCharsets.UTF_8` |
+| P3-2 | 建议 | library-backend | `CallLogAspect.java` | `apiName` 存储方法签名格式而非简单名称，后续按接口统计可能不规范 |
+| P3-3 | 建议 | library-backend | `CallLogAspect.java` | 埋点同步写入 DB，高并发场景可能成为瓶颈，建议异步化 |
+| P3-4 | 建议 | library-backend | `ExportController.java` | `durationMs` 未走 `csvEscape()`，建议统一调用 |
+| P3-5 | 建议 | library-backend | `CallLog.java` | `success` 用 `Boolean` 包装类，建议改用原生 `boolean` 或查询时防御 |
+| P3-6 | 建议 | library-frontend | `api/index.ts` | `getUserId()` 默认 U001，匿名调用场景被前端屏蔽 |
+| P3-7 | 建议 | library-frontend | `api/index.ts` | `exportUrl()` 未对 apiName 做 URL 编码（当前硬编码无风险） |
+| P3-8 | 建议 | library-frontend | `HashTab.tsx` / `BubbleSortTab.tsx` | 导出按钮 `disabled={!result}` 与 HelloWorldTab 不一致 |
+| P3-9 | 建议 | library-frontend | `CallReport.tsx` | `Select value={getUserId()}` 非响应式模式，建议用 useState |
+| P3-10 | 建议 | library-frontend | `CallReport.tsx` | 无 window resize 监听，图表不自适应窗口大小 |
 
 ---
 
-## 四、汇总 (Summary)
+## 六、可靠性检查
 
-### 变更清单
+### 异常处理
+- [library-backend] AlgoService: 所有异常路径（空输入、非法数字、算法不可用）均抛出语义化异常 ✓
+- [library-backend] CallLogAspect: 埋点异常不影响主流程，`log.warn` 记录 ✓
+- [library-backend] ExportController: 白名单校验 + default 分支 404 ✓
+- [library-frontend] 各 Tab 组件: try-catch + `message.error` ✓
+- [library-frontend] CallReport: `fetchStats().catch()` 错误处理 ✓
 
-**[library-backend]** (17 文件):
-- `AlgoService.java` — 三算法实现（helloworld/hash/bubblesort），SHA-256 + 冒泡排序
-- `AlgoController.java` — 三个 REST 接口
-- `ExportController.java` — CSV 导出（含公式注入风险 B3）
-- `CallLogAspect.java` — AOP 埋点（异常吞没 B1 + 切点过宽 B4）
-- `CallLogController.java` — 统计聚合（字段注入 M2）
-- `CallLogRepository.java` — 维度统计 native SQL（NULL 处理 M3）
-- `AppUser.java` / `CallLog.java` — JPA 实体
-- `AlgoResult.java` / `CallStatRow.java` — record DTO
-- `application.yml` — H2 文件库 + JPA ddl-auto:update
-- `data.sql` — 5 条用户种子数据
-- `AlgoApiTest.java` — 4 个集成测试
-- `pom.xml` — Spring Boot 3.2.5 + web/jpa/aop/h2
+### 空值/边界防御
+- [library-backend] CallLogController: NULL 值防御 + computeIfAbsent ✓ (M3)
+- [library-backend] CallLogRepository: COALESCE 处理 SQL NULL ✓
+- [library-backend] CallLogAspect: 用户不存在时填充 "匿名"/"UNKNOWN" ✓
+- [library-frontend] formatOutput: null/undefined 返回空字符串 ✓ (M6)
+- [library-frontend] CallReport: `stats[dim] || []` 空数组防御 ✓
 
-**[library-frontend]** (9 源码文件):
-- `AlgoPage.tsx` — 三 Tab + 报表布局
-- `HelloWorldTab.tsx` / `HashTab.tsx` / `BubbleSortTab.tsx` — 执行 + 导出
-- `CallReport.tsx` — ECharts 可视化（折线/饼/柱 + 三维度切换）
-- `api/index.ts` — axios 封装（硬编码 X-User-Id M5）
-- `types/index.ts` — TS 类型定义
-- `App.tsx` / `main.tsx` — 入口
-- `vite.config.ts` — 代理 `/api` → `:8080`
-- `package.json` — antd5/axios/echarts5/react18
+### 资源管理
+- [library-frontend] CallReport: ECharts 实例卸载时 dispose ✓ (M4)
+- [library-backend] AlgoService: bubbleSort 复制原数组，不修改输入 ✓
 
-### Blocker 结论
+---
 
-**Blocker 数量: 4**
+## 七、可读性检查
 
-| ID | 仓库 | 问题 | 影响 |
-|----|------|------|------|
-| B1 | backend | AOP 埋点吞没异常 + 不记录失败调用 | 调用统计不完整 |
-| B2 | backend | parseInput 非法输入 500 | 用户体验差 |
-| B3 | backend | CSV 导出未转义 + 公式注入 | 安全风险 |
-| B4 | backend | AOP 切点过宽含统计/导出接口 | 统计自污染 |
+- [library-backend] 代码结构清晰，Controller-Service-Repository 分层规范 ✓
+- [library-backend] 注释标注修复编号（B1/B2/B3/B4/M2/M3）便于追溯 ✓
+- [library-frontend] 组件职责单一，每个 Tab 独立 ✓
+- [library-frontend] 常量提取（DIM_LABELS/CHART_LABELS/USER_OPTIONS）✓
+- [library-frontend] formatOutput 统一输出格式化 ✓ (M6)
 
-### 剩余风险
+---
 
-1. **认证缺失**: 前后端均无真实用户认证，报表维度单一，不满足需求"不同维度"展示。
-2. **生产配置**: `ddl-auto: update` + H2 文件库不适合生产；`show-sql: true` 性能损耗。
-3. **测试覆盖**: 后端仅集成测试算法接口，未覆盖导出、统计、AOP 边界场景。
-4. **前端构建**: `tsc && vite build` 但无 ESLint/Prettier 配置，代码风格无保障。
-5. **react/react-dom 版本**: package.json 声明 `^18.3.1` 但 node_modules 实际安装 React 19（见 `@types/react` canary）——版本漂移风险。
+## 八、安全性检查
+
+- [library-backend] ExportController: CSV 公式注入防护 ✓ (B3)
+- [library-backend] ExportController: 响应头注入防护（RFC 5987）✓ (B3)
+- [library-backend] ExportController: apiName 白名单防路径遍历 ✓ (B3)
+- [library-backend] CallLogAspect: 用户身份从 header 读取，不伪造 ✓ (B1)
+- [library-frontend] 导出 URL 参数 `encodeURIComponent` 编码 ✓
+
+---
+
+## 九、评审结论
+
+**通过 ✅**
+
+上一轮代码评审发现的 4 个 blocker（B1-B4）已在 review 阶段"问题修复"中全部正确修复：
+
+| Blocker | 修复状态 | 验证结论 |
+|---------|----------|----------|
+| B1 埋点异常/用户标识 | ✅ 已修复 | CallLogAspect finally 埋点 + ANONYMOUS + log.warn；AlgoService IllegalStateException |
+| B2 非法输入处理 | ✅ 已修复 | AlgoService parseInput 抛 IllegalArgumentException |
+| B3 导出接口安全 | ✅ 已修复 | ExportController 白名单 + RFC 5987 + CSV 转义 |
+| B4 AOP 切入范围 | ✅ 已修复 | CallLogAspect 仅切入 AlgoController |
+
+跨仓接口契约全部对齐（API 路径、AlgoResult、CallStats、X-User-Id、维度枚举）。
+
+剩余 10 项均为 P3 建议级别（不阻断发布），涉及字符集显式化、数据格式规范、UX 一致性、响应式模式改进等，可在后续迭代中优化。
+
+**blocker_count: 0**
 
 ---
 
