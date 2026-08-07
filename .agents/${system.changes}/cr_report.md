@@ -33,7 +33,9 @@
 
 | P0 | P1 | P2 |
 |----|----|-----|
-| 8 | 3 | 4 |
+| 7 | 3 | 4 |
+
+> **注**：预扫初始命中 P0=8，经 LLM 逐条复核后，`ExportServiceImpl.java:140`（IOException 已有 `log.error`）与 `TrackServiceImpl.java:53`（Exception 已有 `log.error`）确认为误报并降级移除；新增 `ExportServiceImpl` 导出重复埋点 P0×1，最终 P0=7。
 
 ---
 
