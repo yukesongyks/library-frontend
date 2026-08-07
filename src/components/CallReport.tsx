@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Card, Spin, Segmented } from 'antd'
+import { Card, Spin, Segmented, Button, Select, Space, message } from 'antd'
 import * as echarts from 'echarts'
-import { fetchStats } from '../api'
+import { fetchStats, getUserId, setUserId } from '../api'
 import type { CallStats } from '../types'
 
 const DIM_LABELS: Record<string, string> = {
@@ -16,15 +16,42 @@ const CHART_LABELS: Record<string, string> = {
   bar: '柱状图',
 }
 
+// M5: 提供用户切换选项，让报表维度有多样性
+const USER_OPTIONS = [
+  { label: '张三 (U001/学生)', value: 'U001' },
+  { label: '李四 (U002/教师)', value: 'U002' },
+  { label: '王五 (U003/管理员)', value: 'U003' },
+  { label: '赵六 (U004/学生)', value: 'U004' },
+  { label: '钱七 (U005/教师)', value: 'U005' },
+]
+
 export default function CallReport() {
   const [stats, setStats] = useState<CallStats | null>(null)
   const [dim, setDim] = useState<string>('userType')
   const [chartType, setChartType] = useState<string>('bar')
+  const [loading, setLoading] = useState(false)
   const chartRef = useRef<HTMLDivElement>(null)
   const chartInstance = useRef<echarts.ECharts | null>(null)
 
+  // m2: 加载报表带错误处理
+  const loadStats = () => {
+    setLoading(true)
+    fetchStats()
+      .then(setStats)
+      .catch(() => message.error('报表加载失败'))
+      .finally(() => setLoading(false))
+  }
+
   useEffect(() => {
-    fetchStats().then(setStats)
+    loadStats()
+  }, [])
+
+  // M4: 组件卸载时销毁 ECharts 实例，防止内存泄漏
+  useEffect(() => {
+    return () => {
+      chartInstance.current?.dispose()
+      chartInstance.current = null
+    }
   }, [])
 
   useEffect(() => {
@@ -68,7 +95,16 @@ export default function CallReport() {
 
   return (
     <Card title="调用情况报表" style={{ marginTop: 24 }}>
-      <Spin spinning={!stats}>
+      <Space style={{ marginBottom: 16 }} wrap>
+        <Select
+          options={USER_OPTIONS}
+          value={getUserId()}
+          onChange={(v) => { setUserId(v); loadStats() }}
+          style={{ width: 220 }}
+        />
+        <Button onClick={loadStats} loading={loading}>刷新</Button>
+      </Space>
+      <Spin spinning={loading && !stats}>
         <Segmented
           options={Object.keys(DIM_LABELS).map((k) => ({ label: DIM_LABELS[k], value: k }))}
           value={dim}

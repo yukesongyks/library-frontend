@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button, Card, Input, Typography, message, Space } from 'antd'
 import { callBubble, exportUrl } from '../api'
+import { formatOutput } from '../types'
 import type { AlgoResult } from '../types'
 
 const { Text } = Typography
@@ -15,14 +16,15 @@ export default function BubbleSortTab() {
     try {
       setResult(await callBubble(input))
     } catch {
-      message.error('调用失败')
+      message.error('调用失败，请检查输入格式')
     } finally {
       setLoading(false)
     }
   }
 
   function doExport() {
-    window.open(`${exportUrl('bubblesort')}?sortInput=${encodeURIComponent(input)}`, '_blank')
+    // m1: 统一参数名为 input，与 hash 分支一致
+    window.open(`${exportUrl('bubblesort')}?input=${encodeURIComponent(input)}`, '_blank')
   }
 
   return (
@@ -36,8 +38,8 @@ export default function BubbleSortTab() {
       </Space>
       {result && (
         <div style={{ marginTop: 16 }}>
-          <Text>输入：{String(result.input)}</Text><br />
-          <Text>输出：{String(result.output)}</Text><br />
+          <Text>输入：{formatOutput(result.input as number[] | string | null)}</Text><br />
+          <Text>输出：{formatOutput(result.output)}</Text><br />
           <Text>耗时：{result.durationMs} ms</Text>
         </div>
       )}

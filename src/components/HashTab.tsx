@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button, Card, Input, Typography, message, Space } from 'antd'
 import { callHash, exportUrl } from '../api'
+import { formatOutput } from '../types'
 import type { AlgoResult } from '../types'
 
 const { Text } = Typography
@@ -36,8 +37,8 @@ export default function HashTab() {
       </Space>
       {result && (
         <div style={{ marginTop: 16 }}>
-          <Text>输入：{String(result.input)}</Text><br />
-          <Text>输出(SHA-256)：{String(result.output)}</Text><br />
+          <Text>输入：{formatOutput(result.input as string | null)}</Text><br />
+          <Text>输出(SHA-256)：{formatOutput(result.output)}</Text><br />
           <Text>耗时：{result.durationMs} ms</Text>
         </div>
       )}

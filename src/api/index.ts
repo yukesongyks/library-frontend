@@ -1,9 +1,18 @@
 import axios from 'axios'
 import type { AlgoResult, CallStats } from '../types'
 
+// M5: 不再硬编码 U001，支持从 localStorage 读取用户切换，默认 U001 便于演示
+const USER_KEY = 'library-user-id'
+export function getUserId(): string {
+  return localStorage.getItem(USER_KEY) || 'U001'
+}
+export function setUserId(id: string) {
+  localStorage.setItem(USER_KEY, id)
+}
+
 const client = axios.create({ baseURL: '/api' })
 client.interceptors.request.use((config) => {
-  config.headers['X-User-Id'] = 'U001'
+  config.headers['X-User-Id'] = getUserId()
   return config
 })
 
