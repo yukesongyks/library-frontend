@@ -37,5 +37,6 @@ export async function fetchStats(): Promise<CallStats> {
 }
 
 export function exportUrl(apiName: string): string {
-  return `/api/export/${apiName}`
+  // P3-7: 对 apiName 做 URL 编码防御，当前硬编码无风险但增强健壮性
+  return `/api/export/${encodeURIComponent(apiName)}`
 }

@@ -30,6 +30,8 @@ export default function CallReport() {
   const [dim, setDim] = useState<string>('userType')
   const [chartType, setChartType] = useState<string>('bar')
   const [loading, setLoading] = useState(false)
+  // P3-9: 用 useState 管理 userId，符合 React 响应式模式
+  const [userId, setUserIdState] = useState<string>(getUserId())
   const chartRef = useRef<HTMLDivElement>(null)
   const chartInstance = useRef<echarts.ECharts | null>(null)
 
@@ -47,8 +49,12 @@ export default function CallReport() {
   }, [])
 
   // M4: 组件卸载时销毁 ECharts 实例，防止内存泄漏
+  // P3-10: 监听 window resize，图表自适应窗口大小
   useEffect(() => {
+    const handleResize = () => chartInstance.current?.resize()
+    window.addEventListener('resize', handleResize)
     return () => {
+      window.removeEventListener('resize', handleResize)
       chartInstance.current?.dispose()
       chartInstance.current = null
     }
@@ -98,8 +104,8 @@ export default function CallReport() {
       <Space style={{ marginBottom: 16 }} wrap>
         <Select
           options={USER_OPTIONS}
-          value={getUserId()}
-          onChange={(v) => { setUserId(v); loadStats() }}
+          value={userId}
+          onChange={(v) => { setUserId(v); setUserIdState(v); loadStats() }}
           style={{ width: 220 }}
         />
         <Button onClick={loadStats} loading={loading}>刷新</Button>

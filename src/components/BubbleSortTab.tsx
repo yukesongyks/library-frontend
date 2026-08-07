@@ -33,7 +33,7 @@ export default function BubbleSortTab() {
         <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="输入逗号分隔的数字" />
         <Space>
           <Button type="primary" loading={loading} onClick={run}>执行</Button>
-          <Button onClick={doExport} disabled={!result}>导出 CSV</Button>
+          <Button onClick={doExport}>导出 CSV</Button>
         </Space>
       </Space>
       {result && (
