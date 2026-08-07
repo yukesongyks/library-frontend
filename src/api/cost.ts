@@ -6,7 +6,7 @@
  */
 
 import { get, post, downloadBlob } from '@/utils/request'
-import { triggerDownload, parseFilenameFromDisposition } from '@/utils/format'
+import { triggerDownload } from '@/utils/format'
 import type {
   DashboardDTO,
   DashboardVO,
@@ -59,8 +59,8 @@ export function importCost(file: File, type: ImportType): Promise<ImportResultVO
   const formData = new FormData()
   formData.append('file', file)
   formData.append('type', type)
+  // axios 自动设置 Content-Type: multipart/form-data; boundary=...，手动指定会丢失 boundary
   return post<ImportResultVO>('/cost/import', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 60000
   })
 }
@@ -70,7 +70,7 @@ export function importCost(file: File, type: ImportType): Promise<ImportResultVO
 /** GET /api/cost/export (返回文件流) */
 export async function exportCost(params: CostExportParams): Promise<void> {
   const blob = await downloadBlob('/cost/export', { ...params })
-  // 从响应头提取文件名（后端 Content-Disposition: attachment; filename=cost_export.xlsx）
+  // 本地构造导出文件名（按 type+日期+format 拼接）
   const filename = buildExportFilename(params)
   triggerDownload(blob, filename)
 }

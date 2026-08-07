@@ -550,9 +550,12 @@ function growthRateClass(val: NullableNumber | undefined): string {
   return ''
 }
 
-/** 人力表格行 key */
-function getHumanRowKey(row: CostHumanVO): string {
-  return `${row.personName}-${row.costPeriod}-${row.roleCode}`
+/** 人力表格行 key（优先 id；缺失时用复合键 + 行索引防冲突） */
+function getHumanRowKey(row: CostHumanVO, index?: number): string {
+  if (row.id != null) {
+    return `human-${row.id}`
+  }
+  return `human-${row.personName}-${row.costPeriod}-${row.roleCode}-${index ?? ''}`
 }
 
 /** 项目表格行 key */

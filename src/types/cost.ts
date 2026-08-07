@@ -109,6 +109,8 @@ export interface CostHumanListDTO {
 
 /** W03 人力成本明细出参 */
 export interface CostHumanVO {
+  /** 主键（后端新增字段，用于 el-table 行键唯一标识；旧接口可能不返回） */
+  id?: number
   deptName: string | null
   projectName: string | null
   bizLineName: string | null
