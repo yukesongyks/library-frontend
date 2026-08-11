@@ -1,0 +1,55 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: shopping-mall
+  datasource:
+    url: jdbc:mysql://localhost:3306/shopping_mall?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    database: 0
+    timeout: 3000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:localhost:9876}
+  producer:
+    group: mall-producer-group
+
+pay:
+  alipay:
+    appId: ${ALIPAY_APP_ID:}
+    merchantId: ${ALIPAY_MERCHANT_ID:}
+    privateKey: ${ALIPAY_PRIVATE_KEY:}
+    publicKey: ${ALIPAY_PUBLIC_KEY:}
+  wechat:
+    appId: ${WECHAT_APP_ID:}
+    merchantId: ${WECHAT_MERCHANT_ID:}
+    apiKey: ${WECHAT_API_KEY:}
+
+logging:
+  level:
+    com.mall: INFO
+    org.springframework: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
