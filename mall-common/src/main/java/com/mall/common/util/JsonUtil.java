@@ -1,6 +1,7 @@
 package com.mall.common.util;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +34,18 @@ public final class JsonUtil {
         }
         try {
             return MAPPER.readValue(json, clazz);
+        } catch (JsonProcessingException e) {
+            log.error("JSON deserialize failed, json={}", json, e);
+            return null;
+        }
+    }
+
+    public static <T> T fromJson(String json, TypeReference<T> typeReference) {
+        if (json == null || json.isEmpty()) {
+            return null;
+        }
+        try {
+            return MAPPER.readValue(json, typeReference);
         } catch (JsonProcessingException e) {
             log.error("JSON deserialize failed, json={}", json, e);
             return null;
