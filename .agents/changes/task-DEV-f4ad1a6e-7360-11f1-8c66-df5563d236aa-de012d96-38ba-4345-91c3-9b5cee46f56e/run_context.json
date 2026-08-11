@@ -1,3 +1,11 @@
 {
-  "blocker_count": 2
+  "blocker_count": 1,
+  "cr_report_path": ".agents/system.changes/cr_report.md",
+  "review_date": "2026-08-11",
+  "reviewer": "DTCoder",
+  "p0_count": 1,
+  "p1_count": 9,
+  "p2_count": 1,
+  "files_reviewed": 7,
+  "status": "completed"
 }
