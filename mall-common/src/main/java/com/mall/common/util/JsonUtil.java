@@ -22,7 +22,7 @@ public final class JsonUtil {
         try {
             return MAPPER.writeValueAsString(obj);
         } catch (JsonProcessingException e) {
-            log.error("JSON serialize failed", e);
+            log.error("JSON serialize failed, obj={}", obj, e);
             return null;
         }
     }
@@ -34,7 +34,7 @@ public final class JsonUtil {
         try {
             return MAPPER.readValue(json, clazz);
         } catch (JsonProcessingException e) {
-            log.error("JSON deserialize failed", e);
+            log.error("JSON deserialize failed, json={}", json, e);
             return null;
         }
     }
