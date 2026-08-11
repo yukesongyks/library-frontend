@@ -1,0 +1,66 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: shopping-mall
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/mall?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    database: 0
+    timeout: 3000ms
+    lettuce:
+      pool:
+        max-active: 10
+        max-idle: 8
+        min-idle: 2
+        max-wait: -1ms
+
+rocketmq:
+  name-server: ${ROCKETMQ_NAMESERVER:localhost:9876}
+  producer:
+    group: mall-producer-group
+    send-message-timeout: 30000
+    retry-times-when-send-failed: 3
+    retry-times-when-send-async-failed: 3
+
+# 支付配置（通过环境变量注入）
+pay:
+  alipay:
+    app-id: ${ALIPAY_APP_ID:}
+    merchant-id: ${ALIPAY_MERCHANT_ID:}
+    private-key: ${ALIPAY_PRIVATE_KEY:}
+    public-key: ${ALIPAY_PUBLIC_KEY:}
+    api-key: ${ALIPAY_API_KEY:}
+    sandbox: ${ALIPAY_SANDBOX:false}
+  wechat:
+    app-id: ${WECHAT_APP_ID:}
+    merchant-id: ${WECHAT_MERCHANT_ID:}
+    private-key: ${WECHAT_PRIVATE_KEY:}
+    api-key: ${WECHAT_API_KEY:}
+    sandbox: ${WECHAT_SANDBOX:false}
+
+# 限流配置
+rate-limit:
+  default-limit: 100
+  seckill-limit: 50
+
+# 日志配置
+logging:
+  level:
+    com.mall: DEBUG
+    org.springframework.web: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
