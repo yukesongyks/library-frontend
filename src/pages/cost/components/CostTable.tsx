@@ -12,7 +12,7 @@ const columns = [
   { title: '业务线', dataIndex: 'businessLineName' },
   { title: '人员', dataIndex: 'personName' },
   { title: '角色', dataIndex: 'laborRole' },
-  { title: '金额(元)', dataIndex: 'amount', render: (v: number) => v.toFixed(2) },
+  { title: '金额(元)', dataIndex: 'amount', render: (v: number | null | undefined) => (v ?? 0).toFixed(2) },
   { title: '日期', dataIndex: 'costDate' },
 ];
 

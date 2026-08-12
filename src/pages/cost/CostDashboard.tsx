@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Card, Row, Col, Statistic, Spin } from 'antd';
+import { Card, Row, Col, Statistic, Spin, message } from 'antd';
 import DimensionFilter from './components/DimensionFilter';
 import LaborCostChart from './components/LaborCostChart';
 import ProjectCostChart from './components/ProjectCostChart';
@@ -8,8 +8,17 @@ import ExportButton from './components/ExportButton';
 import { getCostDashboard, getCostStat } from '../../api/cost';
 import type { CostStatQuery, CostDashboardVO, CostRecordDTO } from '../../types/cost';
 
+function getCurrentMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export default function CostDashboard() {
-  const [query, setQuery] = useState<CostStatQuery>({ dimension: 'DEPT', timeDimension: 'MONTH' });
+  const [query, setQuery] = useState<CostStatQuery>({
+    dimension: 'DEPT',
+    timeDimension: 'MONTH',
+    timeValue: getCurrentMonth(),
+  });
   const [dashboard, setDashboard] = useState<CostDashboardVO | null>(null);
   const [records, setRecords] = useState<CostRecordDTO[]>([]);
   const [loading, setLoading] = useState(false);
@@ -17,12 +26,18 @@ export default function CostDashboard() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [dashRes, statRes] = await Promise.all([
+      const [dashResult, statResult] = await Promise.allSettled([
         getCostDashboard(query),
         getCostStat(query),
       ]);
-      setDashboard(dashRes.data);
-      setRecords(statRes.data);
+      if (dashResult.status === 'fulfilled') {
+        setDashboard(dashResult.value.data);
+      }
+      if (statResult.status === 'fulfilled') {
+        setRecords(statResult.value.data);
+      }
+    } catch {
+      message.error('数据加载失败');
     } finally {
       setLoading(false);
     }
@@ -50,7 +65,14 @@ export default function CostDashboard() {
               <Card><Statistic title="实际消耗合计" value={dashboard.summary.totalActualCost} precision={2} /></Card>
             </Col>
             <Col span={5}>
-              <Card><Statistic title="预算占比" value={dashboard.summary.overallBudgetRatio * 100} precision={2} suffix="%" /></Card>
+              <Card>
+                <Statistic
+                  title="预算占比"
+                  value={dashboard.summary.overallBudgetRatio * 100}
+                  precision={2}
+                  suffix="%"
+                />
+              </Card>
             </Col>
             <Col span={4}>
               <Card><Statistic title="预计超支合计" value={dashboard.summary.totalEstimatedOverspend} precision={2} /></Card>

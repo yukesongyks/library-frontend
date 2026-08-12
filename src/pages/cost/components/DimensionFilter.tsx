@@ -8,7 +8,28 @@ interface Props {
   onChange: (val: Partial<CostStatQuery>) => void;
 }
 
+const TIME_PATTERNS: Record<TimeDimension, RegExp> = {
+  MONTH: /^\d{4}-(0[1-9]|1[0-2])$/,
+  QUARTER: /^\d{4}-Q[1-4]$/,
+  YEAR: /^\d{4}$/,
+};
+
+function getTimePlaceholder(timeDimension: TimeDimension | undefined): string {
+  switch (timeDimension) {
+    case 'QUARTER':
+      return '如 2026-Q3';
+    case 'YEAR':
+      return '如 2026';
+    default:
+      return '如 2026-08';
+  }
+}
+
 export default function DimensionFilter({ value, onChange }: Props) {
+  const timeDimension = value.timeDimension ?? 'MONTH';
+  const timeValue = value.timeValue ?? '';
+  const isValid = !timeValue || TIME_PATTERNS[timeDimension].test(timeValue);
+
   return (
     <Form layout="inline">
       <Form.Item label="统计维度">
@@ -34,9 +55,13 @@ export default function DimensionFilter({ value, onChange }: Props) {
           <Option value="YEAR">年度</Option>
         </Select>
       </Form.Item>
-      <Form.Item label="时间值">
+      <Form.Item
+        label="时间值"
+        validateStatus={timeValue && !isValid ? 'error' : ''}
+        help={timeValue && !isValid ? '格式不正确：月份 yyyy-MM / 季度 yyyy-Qq / 年度 yyyy' : ''}
+      >
         <Input
-          placeholder="如 2026-08 / 2026-Q3 / 2026"
+          placeholder={getTimePlaceholder(timeDimension)}
           value={value.timeValue}
           onChange={(e) => onChange({ timeValue: e.target.value })}
           style={{ width: 160 }}

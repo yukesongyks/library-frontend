@@ -24,7 +24,12 @@ export default function ProjectCostChart({ data }: Props) {
         { name: '预计超支', type: 'bar', data: data.map((d) => d.estimatedOverspend) },
       ],
     });
-    return () => chart.dispose();
+    const handleResize = () => chart.resize();
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.dispose();
+    };
   }, [data]);
 
   return <div ref={ref} style={{ width: '100%', height: 400 }} />;

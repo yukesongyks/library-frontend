@@ -1,10 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { getCostDashboard, exportCostReport } from '../api/cost';
 
-vi.mock('./request', () => ({
+vi.mock('../api/request', () => ({
   default: {
     get: vi.fn().mockResolvedValue({ code: 200, message: 'ok', data: {} }),
   },
+  downloadBlob: vi.fn(),
 }));
 
 describe('cost API', () => {

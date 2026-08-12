@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { message } from 'antd';
 
 const request = axios.create({
   baseURL: '/',
@@ -10,6 +11,7 @@ request.interceptors.response.use(
   (error) => {
     const msg = error?.response?.data?.message || error.message || '请求失败';
     console.error('[request error]', msg);
+    message.error(msg);
     return Promise.reject(error);
   }
 );

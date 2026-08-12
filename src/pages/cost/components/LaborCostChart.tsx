@@ -25,7 +25,12 @@ export default function LaborCostChart({ data }: Props) {
         { name: '运维', type: 'bar', stack: 'total', data: data.map((d) => d.ops) },
       ],
     });
-    return () => chart.dispose();
+    const handleResize = () => chart.resize();
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.dispose();
+    };
   }, [data]);
 
   return <div ref={ref} style={{ width: '100%', height: 400 }} />;
