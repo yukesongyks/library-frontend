@@ -16,6 +16,7 @@ export default function BubbleSortTab() {
   const [order, setOrder] = useState('asc');
   const [result, setResult] = useState<BubbleSortResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const parseArray = (): number[] => {
     return arrayStr
@@ -50,14 +51,15 @@ export default function BubbleSortTab() {
   };
 
   const handleExport = async (format: 'csv' | 'xlsx') => {
-    if (!result) return;
+    if (!result || exporting) return;
+    setExporting(true);
     try {
       const blob = await exportData({
         type: 'bubblesort',
         data: {
-          sorted: JSON.stringify(result.sorted),
-          steps: String(result.steps),
-          original: JSON.stringify(result.original),
+          sorted: result.sorted,
+          steps: result.steps,
+          original: result.original,
         },
         format,
       });
@@ -65,6 +67,8 @@ export default function BubbleSortTab() {
       message.success('导出成功');
     } catch (err: any) {
       message.error(err?.message || '导出失败');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -87,10 +91,10 @@ export default function BubbleSortTab() {
           <Button type="primary" onClick={handleExecute} loading={loading}>
             执行
           </Button>
-          <Button onClick={() => handleExport('csv')} disabled={!result}>
+          <Button onClick={() => handleExport('csv')} disabled={!result} loading={exporting}>
             导出 CSV
           </Button>
-          <Button onClick={() => handleExport('xlsx')} disabled={!result}>
+          <Button onClick={() => handleExport('xlsx')} disabled={!result} loading={exporting}>
             导出 Excel
           </Button>
         </Space>

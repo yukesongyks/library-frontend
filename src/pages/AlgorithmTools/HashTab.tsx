@@ -18,6 +18,7 @@ export default function HashTab() {
   const [algorithm, setAlgorithm] = useState('SHA-256');
   const [result, setResult] = useState<HashResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const handleExecute = async () => {
     if (!input.trim()) {
@@ -36,7 +37,8 @@ export default function HashTab() {
   };
 
   const handleExport = async (format: 'csv' | 'xlsx') => {
-    if (!result) return;
+    if (!result || exporting) return;
+    setExporting(true);
     try {
       const blob = await exportData({
         type: 'hash',
@@ -47,6 +49,8 @@ export default function HashTab() {
       message.success('导出成功');
     } catch (err: any) {
       message.error(err?.message || '导出失败');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -70,10 +74,10 @@ export default function HashTab() {
           <Button type="primary" onClick={handleExecute} loading={loading}>
             执行
           </Button>
-          <Button onClick={() => handleExport('csv')} disabled={!result}>
+          <Button onClick={() => handleExport('csv')} disabled={!result} loading={exporting}>
             导出 CSV
           </Button>
-          <Button onClick={() => handleExport('xlsx')} disabled={!result}>
+          <Button onClick={() => handleExport('xlsx')} disabled={!result} loading={exporting}>
             导出 Excel
           </Button>
         </Space>

@@ -10,6 +10,7 @@ export default function HelloWorldTab() {
   const [name, setName] = useState('');
   const [result, setResult] = useState<HelloWorldResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const handleExecute = async () => {
     setLoading(true);
@@ -24,7 +25,8 @@ export default function HelloWorldTab() {
   };
 
   const handleExport = async (format: 'csv' | 'xlsx') => {
-    if (!result) return;
+    if (!result || exporting) return;
+    setExporting(true);
     try {
       const blob = await exportData({
         type: 'helloworld',
@@ -35,6 +37,8 @@ export default function HelloWorldTab() {
       message.success('导出成功');
     } catch (err: any) {
       message.error(err?.message || '导出失败');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -45,16 +49,17 @@ export default function HelloWorldTab() {
           placeholder="输入名称（默认 World）"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          maxLength={200}
           style={{ maxWidth: 400 }}
         />
         <Space>
           <Button type="primary" onClick={handleExecute} loading={loading}>
             执行
           </Button>
-          <Button onClick={() => handleExport('csv')} disabled={!result}>
+          <Button onClick={() => handleExport('csv')} disabled={!result} loading={exporting}>
             导出 CSV
           </Button>
-          <Button onClick={() => handleExport('xlsx')} disabled={!result}>
+          <Button onClick={() => handleExport('xlsx')} disabled={!result} loading={exporting}>
             导出 Excel
           </Button>
         </Space>

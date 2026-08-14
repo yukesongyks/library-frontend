@@ -75,7 +75,7 @@ export default function MetricsDashboard() {
 
     return {
       tooltip: { trigger: 'axis' },
-      legend: { data: data.breakdown.map((b) => b.label) },
+      legend: { data: chartType === 'bar' ? data.breakdown.map((b) => b.label) : ['调用次数'] },
       xAxis: chartType === 'bar'
         ? { type: 'category', data: data.breakdown.map((b) => b.label) }
         : { type: 'category', data: xData },
@@ -89,7 +89,7 @@ export default function MetricsDashboard() {
             })),
             label: { show: true, position: 'top' },
           }]
-        : [{ type: 'line', data: yData, smooth: true, areaStyle: {} }],
+        : [{ name: '调用次数', type: 'line', data: yData, smooth: true, areaStyle: {} }],
     };
   };
 
