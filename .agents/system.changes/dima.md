@@ -92,7 +92,7 @@
 | **Dashboard** | `/dashboard` | 总览卡片（总成本、本月成本、预算执行率）+ ECharts 图表（趋势折线图、成本占比饼图、部门对比柱状图） |
 | **成本统计分析** | `/cost/analysis` | 多维度筛选（部门/项目/业务线/人员/时间），表格 + 图表联动展示 |
 | **人力成本** | `/cost/labor` | 按岗位类型（开发/测试/产品/运维）统计人力成本，支持时间维度切换 |
-| **项目成本** | `/cost/project` | 项目预算 vs 实际消耗、预算占比、预计超支金额，进度条可视化 |
+| **项目成本** | `/cost/project` | 项目预算 vs 实际消耗、预算占比、预计超支金额，进度条可视化。预计超支金额 = 实际消耗 − 项目预算（当实际 > 预算时显示正值，否则为 0） |
 | **数据录入** | `/cost/entry` | 表单录入成本数据，支持选择部门/项目/人员等维度 |
 | **数据导入** | `/cost/import` | Excel 模板下载 + 文件上传 + 导入校验结果展示（成功/失败/跳过） |
 | **报表导出** | `/cost/export` | 选择维度/时间范围后导出 Excel |
@@ -413,6 +413,8 @@ role ──N:M──▶ permission
 | periodStart | String | 起始期间（YYYY-MM） |
 | periodEnd | String | 结束期间（YYYY-MM） |
 | costType | String | 成本类型 |
+| timeGranularity | String | 时间粒度（month/quarter/year），默认 month |
+| groupBy | String | 分组维度（dept/project/bizLine/employee/roleType），支持多选逗号分隔 |
 
 ### 7.6 统一响应格式
 
@@ -442,6 +444,18 @@ role ──N:M──▶ permission
 ---
 
 ## 8. 数据采集方案
+
+### 8.0 成本计算与分摊规则
+
+| 指标 | 计算公式 | 说明 |
+|------|---------|------|
+| **预算占比** | 实际消耗 / 项目预算 × 100% | 超过 100% 时标红预警 |
+| **预计超支金额** | MAX(实际消耗 − 项目预算, 0) | 仅当实际 > 预算时显示正值 |
+| **预算执行率** | 全部项目实际消耗 / 全部项目预算 × 100% | Dashboard 汇总指标 |
+| **人力成本** | 按 cost_record 中 cost_type=labor 的记录汇总 | 按 role_type 分组统计 |
+| **成本分摊** | 人员成本按 cost_record 中的 project_id 归属 | 一人多项目时，需按项目分别录入成本记录 |
+
+> **季度/年度聚合**：基于 cost_record.period（YYYY-MM）字段计算。季度 = period 月份所属季度（Q1: 01-03, Q2: 04-06, Q3: 07-09, Q4: 10-12）；年度 = period 年份。前端通过 timeGranularity 参数控制聚合粒度。
 
 ### 8.1 手动录入
 

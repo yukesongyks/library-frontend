@@ -67,6 +67,15 @@
           ".agents/system.changes/dima.md"
         ],
         "result": "completed"
+      },
+      {
+        "step": 6,
+        "action": "设计文档自审（Spec Self-Review）",
+        "description": "对 dima.md 进行自审，发现并补充 3 处遗漏：1) 预计超支金额计算公式（MAX(实际消耗−预算, 0)）；2) API 通用查询参数增加 timeGranularity（month/quarter/year）和 groupBy 字段，支持季度/年度聚合及多维度分组；3) 新增「成本计算与分摊规则」章节，明确预算占比、预算执行率、成本分摊等计算逻辑。",
+        "artifacts": [
+          ".agents/system.changes/dima.md"
+        ],
+        "result": "completed"
       }
     ],
     "decisions_summary": {
@@ -77,7 +86,10 @@
       "数据来源": "混合模式（手动录入 + Excel 批量导入 + 外部 API 对接）",
       "导出格式": "Excel (.xlsx)",
       "权限控制": "RBAC 按角色控制（admin / dept_manager / viewer）",
-      "网关": "Spring Cloud Gateway + JWT 鉴权"
+      "网关": "Spring Cloud Gateway + JWT 鉴权",
+      "预计超支金额": "MAX(实际消耗 − 项目预算, 0)",
+      "时间粒度": "支持 month / quarter / year，通过 timeGranularity 参数控制",
+      "成本分摊": "人员成本按 cost_record 中的 project_id 归属，一人多项目时需分别录入"
     }
   }
 }
