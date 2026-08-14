@@ -40,7 +40,7 @@ export default function HashTab() {
     try {
       const blob = await exportData({
         type: 'hash',
-        data: result as unknown as Record<string, unknown>,
+        data: result,
         format,
       });
       downloadBlob(blob, `hash_result.${format}`);
@@ -78,7 +78,7 @@ export default function HashTab() {
           </Button>
         </Space>
       </Space>
-      <ResultDisplay data={result as unknown as Record<string, unknown> | null} />
+      <ResultDisplay data={result} />
     </div>
   );
 }

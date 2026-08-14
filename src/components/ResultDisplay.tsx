@@ -2,11 +2,11 @@ import { Card, Typography } from 'antd';
 
 const { Text } = Typography;
 
-interface Props {
-  data: Record<string, unknown> | null;
+interface Props<T = Record<string, unknown>> {
+  data: T | null;
 }
 
-export default function ResultDisplay({ data }: Props) {
+export default function ResultDisplay<T = Record<string, unknown>>({ data }: Props<T>) {
   if (!data) return null;
 
   return (

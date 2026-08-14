@@ -95,7 +95,7 @@ export default function BubbleSortTab() {
           </Button>
         </Space>
       </Space>
-      <ResultDisplay data={result as unknown as Record<string, unknown> | null} />
+      <ResultDisplay data={result} />
     </div>
   );
 }

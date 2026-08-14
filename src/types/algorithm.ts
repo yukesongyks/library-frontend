@@ -35,6 +35,6 @@ export interface MetricsData {
 
 export interface ExportParams {
   type: 'helloworld' | 'hash' | 'bubblesort';
-  data: Record<string, unknown>;
+  data: HelloWorldResult | HashResult | BubbleSortResult | Record<string, unknown>;
   format?: 'csv' | 'xlsx';
 }

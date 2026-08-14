@@ -28,7 +28,7 @@ export default function HelloWorldTab() {
     try {
       const blob = await exportData({
         type: 'helloworld',
-        data: result as unknown as Record<string, unknown>,
+        data: result,
         format,
       });
       downloadBlob(blob, `helloworld_result.${format}`);
@@ -59,7 +59,7 @@ export default function HelloWorldTab() {
           </Button>
         </Space>
       </Space>
-      <ResultDisplay data={result as unknown as Record<string, unknown> | null} />
+      <ResultDisplay data={result} />
     </div>
   );
 }

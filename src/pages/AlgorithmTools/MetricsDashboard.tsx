@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Card, Select, Radio, DatePicker, Space, Spin, Typography, Statistic, Row, Col } from 'antd';
+import { Card, Select, Radio, DatePicker, Space, Spin, Typography, Statistic, Row, Col, Alert } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import { getMetrics } from '../../api/metrics';
 import type { MetricsData } from '../../types/algorithm';
@@ -25,9 +25,11 @@ export default function MetricsDashboard() {
   const [dateRange, setDateRange] = useState<[string, string] | null>(null);
   const [data, setData] = useState<MetricsData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchMetrics = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const result = await getMetrics({
         dimension,
@@ -35,8 +37,9 @@ export default function MetricsDashboard() {
         endDate: dateRange?.[1],
       });
       setData(result);
-    } catch {
-      // silently fail for dashboard
+    } catch (err: any) {
+      console.error('仪表盘数据加载失败:', err);
+      setError(err?.message || '数据加载失败，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -120,6 +123,16 @@ export default function MetricsDashboard() {
           }}
         />
       </Space>
+
+      {error && (
+        <Alert
+          type="error"
+          message={error}
+          closable
+          onClose={() => setError(null)}
+          style={{ marginBottom: 16 }}
+        />
+      )}
 
       {data && (
         <Row gutter={16} style={{ marginBottom: 16 }}>
