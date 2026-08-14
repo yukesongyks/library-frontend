@@ -1,0 +1,23 @@
+{
+  "blocker_count": 2,
+  "review_type": "design_document_review",
+  "total_issues": {
+    "P0": 2,
+    "P1": 3,
+    "P2": 2
+  },
+  "p0_issues": [
+    {
+      "id": "P0-1",
+      "description": "BUDGET_004 错误码未定义 — 业务规则 R16 引用 BUDGET_004 但错误码表中未定义",
+      "location": "design.md:L744-751 vs L818"
+    },
+    {
+      "id": "P0-2",
+      "description": "删除员工时关联预算数据处理策略缺失 — 仅提及'检查关联预算数据'未定义处理方式",
+      "location": "design.md:L400"
+    }
+  ],
+  "scan_result": "N/A(无Java代码)",
+  "status": "review_completed"
+}
