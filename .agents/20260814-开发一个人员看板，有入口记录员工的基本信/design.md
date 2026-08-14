@@ -209,17 +209,16 @@ erDiagram
 | W02 | 删除员工 | DELETE | /api/employee/{id} | 人员管理 |
 | W03 | 更新员工 | PUT | /api/employee/{id} | 人员管理 |
 | W04 | 查询员工详情 | GET | /api/employee/{id} | 人员管理 |
-| W05 | 分页查询员工列表 | GET | /api/employee/page | 人员管理 |
-| W06 | 搜索员工 | GET | /api/employee/search | 人员管理 |
-| W07 | 批量导入员工 | POST | /api/employee/import | 导入管理 |
-| W08 | 下载导入模板 | GET | /api/employee/import/template | 导入管理 |
-| W09 | 白名单列表 | GET | /api/whitelist/page | 导入管理 |
-| W10 | 添加白名单 | POST | /api/whitelist | 导入管理 |
-| W11 | 删除白名单 | DELETE | /api/whitelist/{id} | 导入管理 |
-| W12 | 创建/更新成本预算 | POST | /api/budget | 成本预算 |
-| W13 | 查询成本预算 | GET | /api/budget/{employeeId} | 成本预算 |
-| W14 | 删除成本预算 | DELETE | /api/budget/{id} | 成本预算 |
-| W15 | 分页查询预算列表 | GET | /api/budget/page | 成本预算 |
+| W05 | 分页查询员工列表（含搜索） | GET | /api/employee/page | 人员管理 |
+| W06 | 批量导入员工 | POST | /api/employee/import | 导入管理 |
+| W07 | 下载导入模板 | GET | /api/employee/import/template | 导入管理 |
+| W08 | 白名单列表 | GET | /api/whitelist/page | 导入管理 |
+| W09 | 添加白名单 | POST | /api/whitelist | 导入管理 |
+| W10 | 删除白名单 | DELETE | /api/whitelist/{id} | 导入管理 |
+| W11 | 创建/更新成本预算 | POST | /api/budget | 成本预算 |
+| W12 | 查询成本预算 | GET | /api/budget/{employeeId} | 成本预算 |
+| W13 | 删除成本预算 | DELETE | /api/budget/{id} | 成本预算 |
+| W14 | 分页查询预算列表 | GET | /api/budget/page | 成本预算 |
 
 ### 4.2 OpenAPI（对外接口）
 - 本项不适用，原因：人员看板为内部管理功能，不对外提供OpenAPI接口
@@ -397,7 +396,7 @@ erDiagram
 |--------|------|
 | EMPLOYEE_003 | 员工不存在 |
 
-- **业务规则**: 逻辑删除，将 is_deleted 置为1；删除时检查关联预算数据
+- **业务规则**: 逻辑删除，将 is_deleted 置为1；删除时将关联预算数据的 employee_id 置为 NULL（置空策略），保留预算历史记录；若存在未置空的预算数据则允许删除，不阻塞
 
 ##### W03 更新员工
 
@@ -434,10 +433,10 @@ erDiagram
 |----------|------|----------|------|
 | id | Long | 是 | 员工ID（路径参数） |
 
-##### W05 分页查询员工列表
+##### W05 分页查询员工列表（含搜索）
 
 - **URI**: GET /api/employee/page
-- **描述**: 分页查询员工列表
+- **描述**: 分页查询员工列表，支持关键字搜索和筛选（已合并原 search 接口，统一通过 keyword 参数实现模糊搜索）
 - **入参**:
 
 | 参数名称 | 类型 | 是否必填 | 描述 |
@@ -532,7 +531,7 @@ sequenceDiagram
 
 #### 5.2.2 接口详细设计
 
-##### W07 批量导入员工
+##### W06 批量导入员工
 
 - **URI**: POST /api/employee/import
 - **描述**: 通过文件批量导入员工信息，导入时自动校验白名单
@@ -540,7 +539,7 @@ sequenceDiagram
 
 | 参数名称 | 类型 | 是否必填 | 描述 |
 |----------|------|----------|------|
-| file | MultipartFile | 是 | 导入文件（Excel .xlsx格式） |
+| file | MultipartFile | 是 | 导入文件，支持 .xlsx 和 .csv 格式 |
 | mode | String | 否 | 导入模式：STRICT(仅白名单), SKIP(跳过白名单校验) |
 
 - **出参**:
@@ -555,7 +554,7 @@ sequenceDiagram
 
 | 错误码 | 说明 |
 |--------|------|
-| IMPORT_001 | 文件格式不支持 |
+| IMPORT_001 | 文件格式不支持，仅支持 .xlsx 和 .csv 格式 |
 | IMPORT_002 | 文件解析失败 |
 | IMPORT_003 | 导入数据为空 |
 | IMPORT_004 | 白名单校验失败，存在不匹配工号 |
@@ -579,12 +578,12 @@ sequenceDiagram
 }
 ```
 
-##### W08 下载导入模板
+##### W07 下载导入模板
 
 - **URI**: GET /api/employee/import/template
-- **描述**: 下载标准的人员导入 Excel 模板
+- **描述**: 下载标准的人员导入 Excel 模板（.xlsx），模板列头为：employee_no, name, gender, department, position, mobile, email, hire_date
 
-##### W09 白名单列表
+##### W08 白名单列表
 
 - **URI**: GET /api/whitelist/page
 - **描述**: 分页查询白名单列表
@@ -596,7 +595,7 @@ sequenceDiagram
 | pageSize | Integer | 否 | 每页条数，默认20 |
 | keyword | String | 否 | 关键字搜索（工号/姓名） |
 
-##### W10 添加白名单
+##### W09 添加白名单
 
 - **URI**: POST /api/whitelist
 - **描述**: 新增白名单记录
@@ -614,7 +613,7 @@ sequenceDiagram
 |--------|------|
 | WHITELIST_001 | 该工号已在白名单中 |
 
-##### W11 删除白名单
+##### W10 删除白名单
 
 - **URI**: DELETE /api/whitelist/{id}
 - **描述**: 删除白名单记录
@@ -654,7 +653,7 @@ sequenceDiagram
 **业务规则：**
 | 规则编号 | 规则描述 | 校验时机 | 不满足时的处理 |
 |----------|----------|----------|--------------|
-| R05 | 导入文件格式必须为.xlsx | 导入时 | 返回 IMPORT_001 |
+| R05 | 导入文件格式必须为 .xlsx 或 .csv | 导入时 | 返回 IMPORT_001 |
 | R06 | 导入模板列头必须与标准模板一致 | 导入时 | 返回 IMPORT_002 |
 | R07 | STRICT模式下，工号必须在白名单中 | 导入时 | 该行跳过，记录失败原因 |
 | R08 | 导入的工号不能与已有员工重复 | 导入时 | 该行跳过，记录失败原因 |
@@ -664,14 +663,14 @@ sequenceDiagram
 **异常场景：**
 | 异常场景 | 处理方式 |
 |----------|----------|
-| 文件格式错误 | 返回 IMPORT_001，提示"仅支持.xlsx格式" |
+| 文件格式错误 | 返回 IMPORT_001，提示"仅支持 .xlsx 和 .csv 格式" |
 | 文件解析异常 | 返回 IMPORT_002，提示"文件解析失败" |
-| 部分行导入失败 | 整体事务不中断，记录失败行及原因，返回成功/失败计数 |
+| 部分行导入失败 | 校验失败的行跳过，记录失败原因；校验通过的行批量插入，事务提交（部分成功不回滚） |
 | 网络中断 | 事务回滚，不产生脏数据 |
 
 **并发控制：**
 - 并发场景：多人同时导入
-- 控制策略：导入操作采用逐行校验 + 批量插入，利用数据库唯一索引保证工号不重复。无需额外锁。
+- 控制策略：分两阶段——（1）校验阶段：逐行解析并校验白名单/工号唯一性，不开启事务，收集校验结果；（2）写入阶段：仅对校验通过的行启动事务批量插入，利用数据库唯一索引保证工号不重复。无需额外锁。
 
 ##### 5.2.3.2 白名单校验导入（F07）
 
@@ -696,13 +695,14 @@ sequenceDiagram
 |--------|----------|------|--------|------|
 | id | bigint | PK, 自增 | - | 系统自增主键 |
 | tenant_id | varchar(32) | NOT NULL | '' | 租户ID（预留） |
-| employee_id | bigint | NOT NULL | - | 关联员工ID（外键逻辑） |
+| employee_id | bigint | NULL | - | 关联员工ID（外键逻辑，员工删除时置空） |
 | budget_year | int(4) | NOT NULL | - | 预算年度 |
 | budget_type | varchar(32) | NOT NULL | '' | 预算类型 |
 | budget_amount | decimal(18,2) | NOT NULL | 0.00 | 预算金额 |
 | used_amount | decimal(18,2) | NOT NULL | 0.00 | 已使用金额 |
 | currency | varchar(8) | NOT NULL | 'CNY' | 币种 |
 | remark | varchar(256) | NOT NULL | '' | 备注 |
+| version | int(11) | NOT NULL | 0 | 乐观锁版本号，用于并发控制 |
 | is_deleted | tinyint(1) | NOT NULL | 0 | 逻辑删除标记 |
 | gmt_create | datetime | NOT NULL | CURRENT_TIMESTAMP | 创建时间 |
 | gmt_modified | datetime | NOT NULL | CURRENT_TIMESTAMP | 修改时间 |
@@ -724,7 +724,7 @@ sequenceDiagram
 
 #### 5.3.2 接口详细设计
 
-##### W12 创建/更新成本预算
+##### W11 创建/更新成本预算
 
 - **URI**: POST /api/budget
 - **描述**: 创建或更新员工成本预算记录
@@ -748,10 +748,11 @@ sequenceDiagram
 | BUDGET_001 | 该员工该年度该类型预算已存在 |
 | BUDGET_002 | 员工不存在 |
 | BUDGET_003 | 预算金额不能为负数 |
+| BUDGET_004 | 已使用金额不能超过预算金额 |
 
 - **业务规则**: 同一员工同一年度同一预算类型仅允许一条记录；更新时如已存在则覆盖
 
-##### W13 查询成本预算
+##### W12 查询成本预算
 
 - **URI**: GET /api/budget/{employeeId}
 - **描述**: 查询指定员工的所有成本预算记录
@@ -762,12 +763,12 @@ sequenceDiagram
 | employeeId | Long | 是 | 员工ID（路径参数） |
 | budgetYear | Integer | 否 | 预算年度筛选 |
 
-##### W14 删除成本预算
+##### W13 删除成本预算
 
 - **URI**: DELETE /api/budget/{id}
 - **描述**: 删除成本预算记录
 
-##### W15 分页查询预算列表
+##### W14 分页查询预算列表
 
 - **URI**: GET /api/budget/page
 - **描述**: 分页查询所有预算记录
@@ -864,7 +865,10 @@ sequenceDiagram
 #### 6.4.3 数据防护方案
 
 ##### 6.4.3.1 是否对敏感数据加密存储
-- 手机号、邮箱等个人信息建议加密存储（AES-256）
+- 手机号、邮箱等个人信息建议加密存储（AES-256/GCM模式），密钥由密钥管理服务（KMS/配置中心）统一管理，定期轮转
+  - 加解密时机：写入时在 Service 层加密后存入 DB；查询时在 Service 层解密后返回给前端
+  - 查询处理：列表查询支持按手机号精确匹配时，使用加密后的密文进行数据库查询（需保证每次加密结果一致，使用确定性加密如 AES-GCM-SIV）
+  - 日志脱敏：日志打印时对手机号/邮箱做脱敏处理（如手机号中间4位掩码为 ****）
 
 ##### 6.4.3.2 是否对敏感数据展示进行脱敏
 - 前端展示列表时，手机号中间4位脱敏（如 138****8000）
