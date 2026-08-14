@@ -38,6 +38,12 @@ const routes: RouteRecordRaw[] = [
     ]
   },
   {
+    path: '/hello',
+    name: 'HelloWorld',
+    component: () => import('@/views/HelloWorldView.vue'),
+    meta: { requiresAuth: false, title: 'Hello World' }
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: () => import('@/views/NotFoundView.vue'),
