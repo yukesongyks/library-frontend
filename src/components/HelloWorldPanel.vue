@@ -20,6 +20,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { getHello } from '../api/dashboard'
 
 const loading = ref(false)
@@ -31,6 +32,7 @@ async function fetchHello() {
     result.value = await getHello()
   } catch (e) {
     console.error(e)
+    ElMessage.error('调用 HelloWorld 接口失败: ' + (e.message || '未知错误'))
   } finally {
     loading.value = false
   }

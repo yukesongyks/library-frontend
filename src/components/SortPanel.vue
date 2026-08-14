@@ -46,6 +46,7 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
+import { ElMessage } from 'element-plus'
 import { sortNumbers } from '../api/dashboard'
 
 const form = reactive({
@@ -62,6 +63,7 @@ async function doSort() {
     result.value = await sortNumbers(numbers, form.order)
   } catch (e) {
     console.error(e)
+    ElMessage.error('排序失败: ' + (e.message || '未知错误'))
   } finally {
     loading.value = false
   }

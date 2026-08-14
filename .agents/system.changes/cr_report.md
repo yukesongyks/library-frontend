@@ -232,19 +232,19 @@ public class BackendApplication {
 
 ### P0 阻塞项（必须修复）
 
-- [ ] **P0-1**: `BackendApplication.java:1-11` — 该 Java 启动类未实现任何需求接口。解决方案：删除或补充完整 Java 实现，或删除 Java 骨架避免误导
-- [ ] **P0-2**: `pom.xml:27-34` — 声明了 `spring-boot-starter-data-jpa` + `h2` 依赖但无实际使用代码。解决方案：删除无用的 Maven 依赖声明
-- [ ] **P0-3**: `pom.xml` + `application.yml` — Spring Boot 配置与 Python 实现完全不一致，Maven 构建无法产出可运行服务。解决方案：统一技术栈选型，清理冗余骨架
+- [x] **P0-1**: `BackendApplication.java:1-11` — 已删除误导性 Java 骨架文件
+- [x] **P0-2**: `pom.xml:27-34` — 已移除未使用的 `spring-boot-starter-data-jpa` + `h2` 依赖
+- [x] **P0-3**: `pom.xml` + `application.yml` — 已清理：移除 H2 配置，仅保留 `server.port: 8080`
 
 ### P1 推荐项（建议修复）
 
-- [ ] **P1-1**: `src/utils/request.js:5` — 前端请求无重试机制，建议增加 axios 重试拦截器
-- [ ] **P1-2**: `src/database.py:38-43` — 数据库写入无事务保护，建议使用 `with conn:` 上下文管理
+- [x] **P1-1**: `src/utils/request.js:5` — 已添加 axios 重试拦截器（最多重试2次，仅超时/网络错误触发）
+- [x] **P1-2**: `src/database.py:38-43` — 已使用 `with conn:` 上下文管理实现事务保护
 
 ### P2 建议项（可选改进）
 
-- [ ] **P2-1**: `src/main.py:96,98` — 导出接口中硬编码了 demo-input 和测试数组，建议改为参数化或从请求中获取
-- [ ] **P2-2**: 各 Vue 组件中 `catch (e)` 仅 `console.error`，建议增加用户友好的错误提示（如 ElMessage）
+- [x] **P2-1**: `src/main.py:96,98` — 导出接口已参数化，支持通过 Query 参数传入 input/numbers/order
+- [x] **P2-2**: 各 Vue 组件（HelloWorldPanel/HashPanel/SortPanel/StatsDashboard）已添加 ElMessage 用户友好错误提示
 
 ---
 

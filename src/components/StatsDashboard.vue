@@ -43,6 +43,7 @@
 
 <script setup>
 import { ref, onMounted, nextTick } from 'vue'
+import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import { getStatsOverview } from '../api/dashboard'
 
@@ -66,6 +67,7 @@ async function refreshCharts() {
     renderBarChart(data.byApi || {})
   } catch (e) {
     console.error('Failed to load stats:', e)
+    ElMessage.error('加载统计看板数据失败: ' + (e.message || '未知错误'))
   }
 }
 

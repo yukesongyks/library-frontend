@@ -37,6 +37,7 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
+import { ElMessage } from 'element-plus'
 import { computeHash } from '../api/dashboard'
 
 const form = reactive({
@@ -52,6 +53,7 @@ async function compute() {
     result.value = await computeHash(form.input, form.algorithm)
   } catch (e) {
     console.error(e)
+    ElMessage.error('计算哈希失败: ' + (e.message || '未知错误'))
   } finally {
     loading.value = false
   }

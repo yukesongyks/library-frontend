@@ -12,8 +12,13 @@ const request = axios.create({
   }
 })
 
+// 重试拦截器
+let retryCount = 0
+const MAX_RETRIES = 2
+
 request.interceptors.response.use(
   response => {
+    retryCount = 0 // 成功后重置重试计数
     const res = response.data
     if (res.code !== 200) {
       console.error('API error:', res.message)
@@ -21,7 +26,21 @@ request.interceptors.response.use(
     }
     return res.data
   },
-  error => {
+  async error => {
+    const config = error.config
+    // 只在网络错误或超时时重试，且不超过最大重试次数
+    if (!config || !error.message || retryCount >= MAX_RETRIES) {
+      retryCount = 0
+      console.error('Request error:', error)
+      return Promise.reject(error)
+    }
+    if (error.message.includes('timeout') || error.code === 'ERR_NETWORK') {
+      retryCount++
+      console.warn(`请求失败，第 ${retryCount} 次重试...`)
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      return request(config)
+    }
+    retryCount = 0
     console.error('Request error:', error)
     return Promise.reject(error)
   }
