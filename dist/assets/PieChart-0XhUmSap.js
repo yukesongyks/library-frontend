@@ -1,0 +1,2 @@
+import{j as a}from"./index-7K6rTA0j.js";import{E as s}from"./index-DoeUgeDO.js";import{c as i}from"./format-Reot9FpA.js";const l=({title:e,data:o})=>{const r={title:{text:e,left:"center",textStyle:{fontSize:14}},tooltip:{trigger:"item",formatter:"{b}: ¥{c} ({d}%)"},legend:{bottom:0},series:[{type:"pie",radius:["40%","65%"],data:o.map(t=>({name:i[t.costType]||t.costType,value:t.amount})),label:{formatter:`{b}
+{d}%`}}]};return a.jsx(s,{option:r,style:{height:300}})};export{l as P};

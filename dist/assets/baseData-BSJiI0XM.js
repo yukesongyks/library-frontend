@@ -1,0 +1,1 @@
+import{r as e}from"./request-iOo4tcja.js";const a=()=>e.get("/base/departments"),g=s=>e.get("/base/projects",{params:{pageNum:1,pageSize:1e3,...s}}),o=()=>e.get("/base/business-lines"),n=s=>e.get("/base/employees",{params:s});export{g as a,o as b,n as c,a as g};

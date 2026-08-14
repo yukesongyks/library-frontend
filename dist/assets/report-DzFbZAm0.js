@@ -1,0 +1,1 @@
+import{r as o}from"./request-iOo4tcja.js";const r=()=>o.get("/report/dashboard"),s=t=>o.get("/report/analysis",{params:t}),a=t=>o.get("/report/labor",{params:t}),p=()=>o.get("/report/project"),g=t=>o.post("/report/export",t,{responseType:"blob"});export{s as a,a as b,p as c,g as e,r as g};

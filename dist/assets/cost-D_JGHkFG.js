@@ -1,0 +1,1 @@
+import{r as o}from"./request-iOo4tcja.js";const r=t=>o.post("/cost/entry",t),a=t=>o.get("/cost/records",{params:t}),p=()=>o.get("/cost/import/template",{responseType:"blob"}),c=t=>{const e=new FormData;return e.append("file",t),o.post("/cost/import",e,{headers:{"Content-Type":"multipart/form-data"}})};export{r as c,p as d,a as g,c as i};

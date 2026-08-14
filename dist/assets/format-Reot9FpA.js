@@ -1,0 +1,1 @@
+const r=t=>`¥${(typeof t=="string"?parseFloat(t):t).toLocaleString("zh-CN",{minimumFractionDigits:2,maximumFractionDigits:2})}`,e=t=>`${t.toFixed(1)}%`,n={dev:"开发",test:"测试",product:"产品",ops:"运维"},s={labor:"人力成本",infra:"基础设施",license:"许可证",travel:"差旅",other:"其他"};export{r as a,s as c,e as f,n as r};
