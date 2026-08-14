@@ -1,0 +1,100 @@
+{
+  "task_id": "DEV-f4ad1a6e-7360-11f1-8c66-df5563d236aa-029ed802-0776-4d82-9b3a-69faba53c3d6",
+  "phase": "brainstorming",
+  "step": "clarification",
+  "status": "completed",
+  "clarification_rounds": [
+    {
+      "round": 1,
+      "question": "这个「人员看板」的核心业务场景是什么？「成本预算」和「白名单」在您的场景中具体指什么？",
+      "answer": "项目人力管理——管理参与项目的员工，跟踪每人的人力成本预算（如外包/驻场人员管理）"
+    },
+    {
+      "round": 2,
+      "questions": [
+        {
+          "header": "白名单含义",
+          "question": "「白名单」在您的场景中具体指什么？",
+          "answer": "项目准入白名单——只有白名单内的人员才能被分配到具体项目，用于控制哪些人有资格参与项目"
+        },
+        {
+          "header": "成本预算粒度",
+          "question": "「成本预算」的粒度是怎样的？是按人员、按项目还是按部门来管理？",
+          "answer": "按部门/团队总额管理，分配到各人员，跟踪预算使用进度"
+        },
+        {
+          "header": "员工信息字段",
+          "question": "员工基本信息需要包含哪些字段？",
+          "answer": "全选：基础信息（姓名、工号、手机号、邮箱、部门、职位）+ 项目关联（所属项目、角色、入场/离场时间）+ 成本信息（日费率/月薪、成本中心、预算金额）+ 供应商信息（所属供应商、合同编号、合同期限）"
+        }
+      ]
+    },
+    {
+      "round": 3,
+      "questions": [
+        {
+          "header": "导入格式",
+          "question": "批量导入员工数据时，期望支持什么文件格式？",
+          "answer": "两者都支持（Excel .xlsx 和 CSV）"
+        },
+        {
+          "header": "看板展示",
+          "question": "人员看板（Dashboard）需要展示哪些核心信息？",
+          "answer": "全选：人员总览统计、预算使用进度、项目人员分布、即将到期提醒"
+        },
+        {
+          "header": "技术栈",
+          "question": "前后端技术栈有偏好吗？",
+          "answer": "React + Ant Design（前端 React + Ant Design Pro，后端 Java Spring Boot）"
+        }
+      ]
+    }
+  ],
+  "confirmed_requirements": {
+    "business_scenario": "项目人力管理（外包/驻场人员）",
+    "whitelist_type": "项目准入白名单",
+    "budget_granularity": "按部门/团队总额",
+    "employee_fields": ["基础信息", "项目关联", "成本信息", "供应商信息"],
+    "import_formats": ["Excel (.xlsx)", "CSV"],
+    "dashboard_widgets": ["人员总览统计", "预算使用进度", "项目人员分布", "即将到期提醒"],
+    "tech_stack": {
+      "frontend": "React 18 + Ant Design Pro 6 + UmiJS",
+      "backend": "Java 17 + Spring Boot 3 + MyBatis-Plus",
+      "database": "MySQL 8"
+    }
+  },
+  "proposed_approaches": [
+    {
+      "name": "方案 A：标准全栈架构",
+      "recommended": true,
+      "summary": "React + Ant Design Pro + Spring Boot + MySQL，成熟稳定，适合中等规模项目"
+    },
+    {
+      "name": "方案 B：轻量级全栈架构",
+      "recommended": false,
+      "summary": "React + Ant Design + NestJS + PostgreSQL，全 JS/TS 栈，开发效率高"
+    },
+    {
+      "name": "方案 C：微服务架构",
+      "recommended": false,
+      "summary": "Spring Cloud 微服务，可扩展性强但对当前需求过度设计"
+    }
+  ],
+  "confirmed_decisions": {
+    "approach": "方案 A：标准全栈架构（React + Ant Design Pro + Spring Boot + MySQL）",
+    "rbac": true,
+    "budget_cycle": "按项目周期",
+    "deployment": "Docker 容器化（docker-compose）"
+  },
+  "rbac_roles": [
+    {"role": "系统管理员", "permissions": "全部权限，包括用户管理、系统配置"},
+    {"role": "项目经理", "permissions": "项目人员分配、白名单管理、预算查看"},
+    {"role": "部门主管", "permissions": "本部门人员管理、预算设置与查看"},
+    {"role": "普通用户", "permissions": "查看人员信息、看板数据"}
+  ],
+  "pending_confirmations": [
+    "是否需要操作日志/审计功能",
+    "数据备份策略",
+    "是否需要消息通知（邮件/钉钉等）"
+  ]
+}
