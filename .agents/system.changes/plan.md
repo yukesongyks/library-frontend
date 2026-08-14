@@ -1,127 +1,51 @@
-# 成本统计报表系统 Implementation Plan
+# 成本统计报表系统 — 前端实施计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 从零搭建企业成本统计报表系统，支持多维度成本统计、Dashboard 可视化、数据录入/导入/导出及 RBAC 权限控制。
+**Goal:** 从零搭建成本统计报表系统前端应用，实现 Dashboard 总览、多维度成本统计分析、人力/项目成本展示、数据录入/导入/导出及 RBAC 权限控制。
 
-**Architecture:** 前后端分离 + 微服务架构。前端 React SPA 通过 API Gateway 访问后端 4 个微服务（auth-service / base-data-service / cost-core-service / report-service），JWT 鉴权，MySQL 持久化。
+**Architecture:** React SPA 通过 Vite dev proxy 或生产环境 Nginx 反向代理访问后端 API Gateway（`/api/*`），JWT 鉴权，Zustand 管理全局状态。
 
 **Tech Stack:**
-- 前端: React 18 + TypeScript + Vite + Ant Design 5 + ECharts 5 + Zustand + React Router 6 + Axios
-- 后端: Java 17 + Spring Boot 3.2 + Spring Cloud Gateway + MyBatis-Plus + MySQL 8 + EasyExcel + JWT
-- 构建: Maven (后端) + pnpm (前端)
+- React 18 + TypeScript 5 + Vite 5
+- Ant Design 5 + @ant-design/icons
+- ECharts 5 + echarts-for-react
+- React Router 6 (createBrowserRouter)
+- Zustand (状态管理)
+- Axios (HTTP 请求)
+- dayjs (日期处理)
 
-**跨库仓库:**
-- `library-frontend` — 前端 React 应用
-- `library-backend` — 后端 Maven 多模块项目（含 gateway + 4 微服务 + common）
+**后端 API 依赖（跨库契约）：**
+- `auth-service` (8081): 登录/登出/用户/角色管理
+- `base-data-service` (8082): 部门/项目/业务线/人员 CRUD
+- `cost-core-service` (8083): 成本录入/导入/记录管理
+- `report-service` (8084): Dashboard/分析/导出
+- 统一入口: API Gateway (8080)，路由前缀 `/api/`
 
 ---
 
 ## Global Constraints
 
-- Java 版本 ≥ 17，Spring Boot 3.2.x
 - Node.js ≥ 18，pnpm 作为包管理器
-- 所有 API 响应统一格式 `{ code, message, data, timestamp }`
-- 分页响应 `{ list, total, pageNum, pageSize }`
-- JWT Token 有效期 24h，Refresh Token 7d
-- 数据库表名小写下划线，字段名小写下划线
-- 前端路由使用 React Router v6，页面组件使用函数组件 + Hooks
-- 所有接口需添加 Swagger 注解
-- 成本金额使用 `DECIMAL(15,2)`，前端使用 `number` 并保留两位小数
+- 所有 API 响应统一格式 `{ code: number, message: string, data: T, timestamp: number }`
+- 分页响应 `{ list: T[], total: number, pageNum: number, pageSize: number }`
+- JWT Token 存 localStorage，有效期 24h，请求头 `Authorization: Bearer <token>`
+- 前端路由使用 React Router v6 createBrowserRouter，页面组件使用函数组件 + Hooks
+- 成本金额 `number` 类型，展示时保留两位小数，前缀 ¥
 - RBAC 三角色：admin / dept_manager / viewer
-- 导出格式仅 Excel (.xlsx)，使用 EasyExcel
+- 导出格式仅 Excel (.xlsx)
+- 时间粒度参数 `timeGranularity`：month / quarter / year
+- 预计超支金额 = MAX(实际消耗 − 项目预算, 0)
 
 ---
 
 ## File Structure
 
-### library-backend（后端）
-
-```
-library-backend-main/
-├── pom.xml                                    # 父 POM，管理依赖版本
-├── common/                                    # 公共模块
-│   ├── pom.xml
-│   └── src/main/java/com/library/common/
-│       ├── response/Result.java               # 统一响应封装
-│       ├── response/PageResult.java           # 分页响应封装
-│       ├── exception/BusinessException.java   # 业务异常
-│       ├── exception/GlobalExceptionHandler.java
-│       ├── config/MyBatisPlusConfig.java      # MyBatis-Plus 配置
-│       ├── config/CorsConfig.java             # 跨域配置
-│       ├── util/JwtUtil.java                  # JWT 工具类
-│       └── constant/RoleConstants.java        # 角色常量
-├── gateway/                                   # API Gateway
-│   ├── pom.xml
-│   └── src/main/java/com/library/gateway/
-│       ├── GatewayApplication.java
-│       ├── config/RouteConfig.java            # 路由配置
-│       └── filter/JwtAuthGlobalFilter.java    # JWT 鉴权过滤器
-├── auth-service/                              # 认证授权服务 (8081)
-│   ├── pom.xml
-│   └── src/main/java/com/library/auth/
-│       ├── AuthApplication.java
-│       ├── controller/AuthController.java
-│       ├── controller/UserController.java
-│       ├── controller/RoleController.java
-│       ├── service/AuthService.java
-│       ├── service/UserService.java
-│       ├── service/RoleService.java
-│       ├── mapper/UserMapper.java
-│       ├── mapper/RoleMapper.java
-│       ├── mapper/UserRoleMapper.java
-│       ├── mapper/PermissionMapper.java
-│       ├── mapper/RolePermissionMapper.java
-│       ├── entity/User.java
-│       ├── entity/Role.java
-│       ├── entity/UserRole.java
-│       ├── entity/Permission.java
-│       ├── entity/RolePermission.java
-│       └── dto/LoginRequest.java / LoginResponse.java / UserDTO.java / RoleDTO.java
-├── base-data-service/                         # 基础数据服务 (8082)
-│   ├── pom.xml
-│   └── src/main/java/com/library/basedata/
-│       ├── BaseDataApplication.java
-│       ├── controller/DepartmentController.java
-│       ├── controller/ProjectController.java
-│       ├── controller/BusinessLineController.java
-│       ├── controller/EmployeeController.java
-│       ├── service/ + mapper/ + entity/ + dto/
-├── cost-core-service/                         # 成本数据服务 (8083)
-│   ├── pom.xml
-│   └── src/main/java/com/library/cost/
-│       ├── CostCoreApplication.java
-│       ├── controller/CostEntryController.java
-│       ├── controller/CostImportController.java
-│       ├── controller/CostRecordController.java
-│       ├── service/CostEntryService.java
-│       ├── service/CostImportService.java
-│       ├── mapper/CostRecordMapper.java
-│       ├── entity/CostRecord.java
-│       └── dto/CostEntryRequest.java / ImportResultDTO.java
-├── report-service/                            # 报表统计服务 (8084)
-│   ├── pom.xml
-│   └── src/main/java/com/library/report/
-│       ├── ReportApplication.java
-│       ├── controller/DashboardController.java
-│       ├── controller/AnalysisController.java
-│       ├── controller/ExportController.java
-│       ├── service/DashboardService.java
-│       ├── service/AnalysisService.java
-│       ├── service/ExportService.java
-│       ├── mapper/ReportMapper.java
-│       ├── dto/DashboardDTO.java / AnalysisQuery.java / ExportRequest.java
-│       └── feign/BaseDataClient.java          # Feign 调用 base-data-service
-└── sql/
-    └── init.sql                               # 数据库初始化脚本
-```
-
-### library-frontend（前端）
-
 ```
 library-frontend-main/
 ├── package.json
 ├── tsconfig.json
+├── tsconfig.node.json
 ├── vite.config.ts
 ├── index.html
 ├── public/
@@ -130,41 +54,42 @@ library-frontend-main/
     ├── App.tsx                                # 路由配置
     ├── api/                                   # API 请求封装
     │   ├── request.ts                         # Axios 实例 + 拦截器
-    │   ├── auth.ts
-    │   ├── baseData.ts
-    │   ├── cost.ts
-    │   └── report.ts
+    │   ├── auth.ts                            # 认证接口
+    │   ├── baseData.ts                        # 基础数据接口
+    │   ├── cost.ts                            # 成本数据接口
+    │   └── report.ts                          # 报表统计接口
     ├── types/                                 # TypeScript 类型
     │   ├── api.ts                             # 通用响应类型
-    │   ├── auth.ts
-    │   ├── baseData.ts
-    │   ├── cost.ts
-    │   └── report.ts
+    │   ├── auth.ts                            # 认证类型
+    │   ├── baseData.ts                        # 基础数据类型
+    │   ├── cost.ts                            # 成本类型
+    │   └── report.ts                          # 报表类型
     ├── store/                                 # Zustand 状态管理
-    │   ├── useAuthStore.ts
-    │   └── useFilterStore.ts
+    │   ├── useAuthStore.ts                    # 认证状态
+    │   └── useFilterStore.ts                  # 筛选条件状态
     ├── layouts/
     │   └── MainLayout.tsx                     # 侧边栏 + 顶栏布局
     ├── components/                            # 通用组件
-    │   ├── Charts/LineChart.tsx
-    │   ├── Charts/PieChart.tsx
-    │   ├── Charts/BarChart.tsx
-    │   ├── StatCard/index.tsx
-    │   ├── FilterBar/index.tsx
-    │   ├── ExportButton/index.tsx
-    │   └── AuthRoute/index.tsx
+    │   ├── Charts/
+    │   │   ├── LineChart.tsx                  # 折线图
+    │   │   ├── PieChart.tsx                   # 饼图
+    │   │   └── BarChart.tsx                   # 柱状图
+    │   ├── StatCard/index.tsx                 # 统计卡片
+    │   ├── FilterBar/index.tsx                # 通用筛选栏
+    │   ├── ExportButton/index.tsx             # 导出按钮
+    │   └── AuthRoute/index.tsx                # 路由守卫
     ├── pages/
-    │   ├── Login/index.tsx
-    │   ├── Dashboard/index.tsx
-    │   ├── CostAnalysis/index.tsx
-    │   ├── LaborCost/index.tsx
-    │   ├── ProjectCost/index.tsx
-    │   ├── DataEntry/index.tsx
-    │   ├── DataImport/index.tsx
-    │   ├── ReportExport/index.tsx
+    │   ├── Login/index.tsx                    # 登录页
+    │   ├── Dashboard/index.tsx                # Dashboard 总览
+    │   ├── CostAnalysis/index.tsx             # 成本统计分析
+    │   ├── LaborCost/index.tsx                # 人力成本
+    │   ├── ProjectCost/index.tsx              # 项目成本
+    │   ├── DataEntry/index.tsx                # 数据录入
+    │   ├── DataImport/index.tsx               # 数据导入
+    │   ├── ReportExport/index.tsx             # 报表导出
     │   └── System/
-    │       ├── UserManage/index.tsx
-    │       └── RoleManage/index.tsx
+    │       ├── UserManage/index.tsx           # 用户管理
+    │       └── RoleManage/index.tsx           # 角色管理
     └── utils/
         ├── format.ts                          # 金额/日期格式化
         └── constants.ts                       # 常量定义
@@ -172,2544 +97,7 @@ library-frontend-main/
 
 ---
 
-## Task 1: 后端项目脚手架搭建 + 数据库初始化
-
-**Files:**
-- Create: `library-backend-main/pom.xml`
-- Create: `library-backend-main/common/pom.xml`
-- Create: `library-backend-main/common/src/main/java/com/library/common/response/Result.java`
-- Create: `library-backend-main/common/src/main/java/com/library/common/response/PageResult.java`
-- Create: `library-backend-main/common/src/main/java/com/library/common/exception/BusinessException.java`
-- Create: `library-backend-main/common/src/main/java/com/library/common/exception/GlobalExceptionHandler.java`
-- Create: `library-backend-main/common/src/main/java/com/library/common/config/MyBatisPlusConfig.java`
-- Create: `library-backend-main/common/src/main/java/com/library/common/util/JwtUtil.java`
-- Create: `library-backend-main/common/src/main/java/com/library/common/constant/RoleConstants.java`
-- Create: `library-backend-main/sql/init.sql`
-
-**Interfaces:**
-- Produces: `Result<T>` — 统一响应 `{code, message, data, timestamp}`，静态方法 `success(data)` / `fail(code, msg)`
-- Produces: `PageResult<T>` — 分页响应 `{list, total, pageNum, pageSize}`
-- Produces: `BusinessException` — 业务异常，含 `code` + `message`
-- Produces: `JwtUtil` — `generateToken(userId, username, roles)`, `parseToken(token)`, `isTokenExpired(token)`
-- Produces: `RoleConstants` — `ROLE_ADMIN`, `ROLE_DEPT_MANAGER`, `ROLE_VIEWER`
-
-- [ ] **Step 1: 创建父 POM**
-
-```xml
-<!-- library-backend-main/pom.xml -->
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.5</version>
-    </parent>
-    <groupId>com.library</groupId>
-    <artifactId>library-backend</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-    <packaging>pom</packaging>
-    <modules>
-        <module>common</module>
-        <module>gateway</module>
-        <module>auth-service</module>
-        <module>base-data-service</module>
-        <module>cost-core-service</module>
-        <module>report-service</module>
-    </modules>
-    <properties>
-        <java.version>17</java.version>
-        <mybatis-plus.version>3.5.6</mybatis-plus.version>
-        <jjwt.version>0.12.5</jjwt.version>
-        <easyexcel.version>3.3.4</easyexcel.version>
-        <spring-cloud.version>2023.0.1</spring-cloud.version>
-    </properties>
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.springframework.cloud</groupId>
-                <artifactId>spring-cloud-dependencies</artifactId>
-                <version>${spring-cloud.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>com.baomidou</groupId>
-                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
-                <version>${mybatis-plus.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.jsonwebtoken</groupId>
-                <artifactId>jjwt-api</artifactId>
-                <version>${jjwt.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.alibaba</groupId>
-                <artifactId>easyexcel</artifactId>
-                <version>${easyexcel.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.library</groupId>
-                <artifactId>common</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-</project>
-```
-
-- [ ] **Step 2: 创建 common 模块 POM**
-
-```xml
-<!-- library-backend-main/common/pom.xml -->
-<?xml version="1.0" encoding="UTF-8"?>
-<project>
-    <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>com.library</groupId>
-        <artifactId>library-backend</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
-    </parent>
-    <artifactId>common</artifactId>
-    <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-impl</artifactId>
-            <version>${jjwt.version}</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-jackson</artifactId>
-            <version>${jjwt.version}</version>
-            <scope>runtime</scope>
-        </dependency>
-    </dependencies>
-</project>
-```
-
-- [ ] **Step 3: 创建 Result.java 统一响应**
-
-```java
-package com.library.common.response;
-
-import com.fasterxml.jackson.annotation.JsonInclude;
-import java.io.Serializable;
-
-@JsonInclude(JsonInclude.Include.NON_NULL)
-public class Result<T> implements Serializable {
-    private int code;
-    private String message;
-    private T data;
-    private long timestamp;
-
-    public Result() { this.timestamp = System.currentTimeMillis(); }
-
-    public static <T> Result<T> success(T data) {
-        Result<T> r = new Result<>();
-        r.code = 200; r.message = "success"; r.data = data;
-        return r;
-    }
-
-    public static <T> Result<T> fail(int code, String message) {
-        Result<T> r = new Result<>();
-        r.code = code; r.message = message;
-        return r;
-    }
-
-    public int getCode() { return code; }
-    public void setCode(int code) { this.code = code; }
-    public String getMessage() { return message; }
-    public void setMessage(String message) { this.message = message; }
-    public T getData() { return data; }
-    public void setData(T data) { this.data = data; }
-    public long getTimestamp() { return timestamp; }
-    public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
-}
-```
-
-- [ ] **Step 4: 创建 PageResult.java**
-
-```java
-package com.library.common.response;
-
-import java.util.List;
-
-public class PageResult<T> {
-    private List<T> list;
-    private long total;
-    private int pageNum;
-    private int pageSize;
-
-    public PageResult(List<T> list, long total, int pageNum, int pageSize) {
-        this.list = list; this.total = total;
-        this.pageNum = pageNum; this.pageSize = pageSize;
-    }
-
-    public List<T> getList() { return list; }
-    public long getTotal() { return total; }
-    public int getPageNum() { return pageNum; }
-    public int getPageSize() { return pageSize; }
-}
-```
-
-- [ ] **Step 5: 创建 BusinessException + GlobalExceptionHandler**
-
-```java
-package com.library.common.exception;
-
-public class BusinessException extends RuntimeException {
-    private final int code;
-    public BusinessException(int code, String message) {
-        super(message); this.code = code;
-    }
-    public int getCode() { return code; }
-}
-```
-
-```java
-package com.library.common.exception;
-
-import com.library.common.response.Result;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
-
-@RestControllerAdvice
-public class GlobalExceptionHandler {
-    @ExceptionHandler(BusinessException.class)
-    public Result<?> handleBusiness(BusinessException e) {
-        return Result.fail(e.getCode(), e.getMessage());
-    }
-    @ExceptionHandler(Exception.class)
-    public Result<?> handleException(Exception e) {
-        return Result.fail(500, "服务器内部错误: " + e.getMessage());
-    }
-}
-```
-
-- [ ] **Step 6: 创建 JwtUtil.java**
-
-```java
-package com.library.common.util;
-
-import io.jsonwebtoken.*;
-import io.jsonwebtoken.security.Keys;
-import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
-
-public class JwtUtil {
-    private static final String SECRET = "cost-report-system-jwt-secret-key-must-be-at-least-256-bits";
-    private static final SecretKey KEY = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
-    private static final long EXPIRE_MS = 24 * 60 * 60 * 1000L;
-
-    public static String generateToken(Long userId, String username, List<String> roles) {
-        return Jwts.builder()
-                .subject(username)
-                .claim("userId", userId)
-                .claim("roles", roles)
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + EXPIRE_MS))
-                .signWith(KEY)
-                .compact();
-    }
-
-    public static Claims parseToken(String token) {
-        return Jwts.parser().verifyWith(KEY).build()
-                .parseSignedClaims(token).getPayload();
-    }
-
-    public static boolean isTokenExpired(String token) {
-        try {
-            return parseToken(token).getExpiration().before(new Date());
-        } catch (Exception e) {
-            return true;
-        }
-    }
-}
-```
-
-- [ ] **Step 7: 创建 RoleConstants.java**
-
-```java
-package com.library.common.constant;
-
-public final class RoleConstants {
-    public static final String ROLE_ADMIN = "admin";
-    public static final String ROLE_DEPT_MANAGER = "dept_manager";
-    public static final String ROLE_VIEWER = "viewer";
-    public static final String DATA_SCOPE_ALL = "all";
-    public static final String DATA_SCOPE_DEPT = "dept";
-    public static final String DATA_SCOPE_SELF = "self";
-    private RoleConstants() {}
-}
-```
-
-- [ ] **Step 8: 创建 MyBatisPlusConfig.java**
-
-```java
-package com.library.common.config;
-
-import com.baomidou.mybatisplus.annotation.DbType;
-import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
-import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-
-@Configuration
-public class MyBatisPlusConfig {
-    @Bean
-    public MybatisPlusInterceptor mybatisPlusInterceptor() {
-        MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
-        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
-        return interceptor;
-    }
-}
-```
-
-- [ ] **Step 9: 创建数据库初始化脚本 sql/init.sql**
-
-```sql
-CREATE DATABASE IF NOT EXISTS cost_report DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE cost_report;
-
-CREATE TABLE department (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    code VARCHAR(50) UNIQUE NOT NULL,
-    parent_id BIGINT DEFAULT 0,
-    status TINYINT DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
-
-CREATE TABLE business_line (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    code VARCHAR(50) UNIQUE NOT NULL,
-    description VARCHAR(500),
-    status TINYINT DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
-
-CREATE TABLE project (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(200) NOT NULL,
-    code VARCHAR(50) UNIQUE NOT NULL,
-    budget DECIMAL(15,2) DEFAULT 0,
-    dept_id BIGINT,
-    biz_line_id BIGINT,
-    start_date DATE,
-    end_date DATE,
-    status TINYINT DEFAULT 1 COMMENT '1-进行中 2-已完成 0-已关闭',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_project_dept (dept_id),
-    INDEX idx_project_biz (biz_line_id)
-) ENGINE=InnoDB;
-
-CREATE TABLE employee (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(50) NOT NULL,
-    emp_no VARCHAR(50) UNIQUE NOT NULL,
-    dept_id BIGINT,
-    role_type VARCHAR(20) COMMENT 'dev/test/product/ops',
-    salary DECIMAL(12,2),
-    entry_date DATE,
-    status TINYINT DEFAULT 1 COMMENT '1-在职 0-离职',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_employee_dept (dept_id)
-) ENGINE=InnoDB;
-
-CREATE TABLE cost_record (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    dept_id BIGINT,
-    project_id BIGINT,
-    biz_line_id BIGINT,
-    employee_id BIGINT,
-    role_type VARCHAR(20),
-    cost_type VARCHAR(30) COMMENT 'labor/infra/license/travel/other',
-    amount DECIMAL(15,2) NOT NULL,
-    period VARCHAR(7) NOT NULL COMMENT 'YYYY-MM',
-    source VARCHAR(20) COMMENT 'manual/import/api',
-    remark VARCHAR(500),
-    created_by BIGINT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_cost_dept_period (dept_id, period),
-    INDEX idx_cost_project_period (project_id, period),
-    INDEX idx_cost_biz_period (biz_line_id, period),
-    INDEX idx_cost_emp_period (employee_id, period),
-    INDEX idx_cost_type_period (cost_type, period),
-    UNIQUE KEY uk_cost_dedup (dept_id, project_id, employee_id, period, cost_type)
-) ENGINE=InnoDB;
-
-CREATE TABLE sys_user (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    password VARCHAR(200) NOT NULL,
-    name VARCHAR(50),
-    dept_id BIGINT,
-    status TINYINT DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
-
-CREATE TABLE sys_role (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(50) NOT NULL,
-    code VARCHAR(50) UNIQUE NOT NULL,
-    description VARCHAR(200),
-    data_scope VARCHAR(20) DEFAULT 'all',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
-
-CREATE TABLE sys_user_role (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    role_id BIGINT NOT NULL,
-    UNIQUE KEY uk_user_role (user_id, role_id)
-) ENGINE=InnoDB;
-
-CREATE TABLE sys_permission (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    code VARCHAR(100) UNIQUE NOT NULL,
-    type VARCHAR(20) COMMENT 'menu/button/api',
-    parent_id BIGINT DEFAULT 0
-) ENGINE=InnoDB;
-
-CREATE TABLE sys_role_permission (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    role_id BIGINT NOT NULL,
-    permission_id BIGINT NOT NULL,
-    UNIQUE KEY uk_role_perm (role_id, permission_id)
-) ENGINE=InnoDB;
-
-INSERT INTO sys_role (name, code, description, data_scope) VALUES
-('系统管理员', 'admin', '拥有所有权限', 'all'),
-('部门经理', 'dept_manager', '管理本部门数据', 'dept'),
-('普通查看者', 'viewer', '仅查看本人数据', 'self');
-
-INSERT INTO sys_permission (name, code, type, parent_id) VALUES
-('Dashboard', 'dashboard:view', 'menu', 0),
-('成本分析', 'cost:analysis:view', 'menu', 0),
-('人力成本', 'cost:labor:view', 'menu', 0),
-('项目成本', 'cost:project:view', 'menu', 0),
-('数据录入', 'cost:entry:create', 'button', 0),
-('数据导入', 'cost:import:create', 'button', 0),
-('报表导出', 'report:export', 'button', 0),
-('基础数据管理', 'base:manage', 'menu', 0),
-('用户管理', 'system:user:manage', 'menu', 0),
-('角色管理', 'system:role:manage', 'menu', 0);
-
-INSERT INTO sys_user (username, password, name, dept_id, status) VALUES
-('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '系统管理员', NULL, 1);
-
-INSERT INTO sys_user_role (user_id, role_id) VALUES (1, 1);
-```
-
-- [ ] **Step 10: 验证 common 模块编译**
-
-Run: `cd library-backend-main && mvn compile -pl common -am`
-Expected: BUILD SUCCESS
-
-- [ ] **Step 11: Commit**
-
-```bash
-git add -A
-git commit -m "feat: init backend project scaffold with common module and database schema"
-```
-
----
-
-## Task 2: API Gateway 搭建
-
-**Files:**
-- Create: `library-backend-main/gateway/pom.xml`
-- Create: `library-backend-main/gateway/src/main/java/com/library/gateway/GatewayApplication.java`
-- Create: `library-backend-main/gateway/src/main/java/com/library/gateway/config/RouteConfig.java`
-- Create: `library-backend-main/gateway/src/main/java/com/library/gateway/filter/JwtAuthGlobalFilter.java`
-- Create: `library-backend-main/gateway/src/main/resources/application.yml`
-
-**Interfaces:**
-- Consumes: `JwtUtil.parseToken()` / `JwtUtil.isTokenExpired()` from common
-- Produces: Gateway 路由转发至 4 个微服务，JWT 鉴权过滤器
-
-- [ ] **Step 1: 创建 gateway/pom.xml**
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<project>
-    <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>com.library</groupId>
-        <artifactId>library-backend</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
-    </parent>
-    <artifactId>gateway</artifactId>
-    <dependencies>
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-gateway</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.library</groupId>
-            <artifactId>common</artifactId>
-        </dependency>
-    </dependencies>
-</project>
-```
-
-- [ ] **Step 2: 创建 GatewayApplication.java**
-
-```java
-package com.library.gateway;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-
-@SpringBootApplication
-public class GatewayApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(GatewayApplication.class, args);
-    }
-}
-```
-
-- [ ] **Step 3: 创建 application.yml 路由配置**
-
-```yaml
-server:
-  port: 8080
-
-spring:
-  cloud:
-    gateway:
-      routes:
-        - id: auth-service
-          uri: http://localhost:8081
-          predicates:
-            - Path=/api/auth/**
-        - id: base-data-service
-          uri: http://localhost:8082
-          predicates:
-            - Path=/api/base/**
-        - id: cost-core-service
-          uri: http://localhost:8083
-          predicates:
-            - Path=/api/cost/**
-        - id: report-service
-          uri: http://localhost:8084
-          predicates:
-            - Path=/api/report/**
-      globalcors:
-        corsConfigurations:
-          '[/**]':
-            allowedOrigins: "http://localhost:5173"
-            allowedMethods: "*"
-            allowedHeaders: "*"
-            allowCredentials: true
-```
-
-- [ ] **Step 4: 创建 JwtAuthGlobalFilter.java**
-
-```java
-package com.library.gateway.filter;
-
-import com.library.common.util.JwtUtil;
-import org.springframework.cloud.gateway.filter.GatewayFilterChain;
-import org.springframework.cloud.gateway.filter.GlobalFilter;
-import org.springframework.core.Ordered;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.server.reactive.ServerHttpRequest;
-import org.springframework.stereotype.Component;
-import org.springframework.web.server.ServerWebExchange;
-import reactor.core.publisher.Mono;
-
-import java.util.List;
-
-@Component
-public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
-
-    private static final List<String> WHITE_LIST = List.of(
-            "/api/auth/login", "/api/auth/logout"
-    );
-
-    @Override
-    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        String path = exchange.getRequest().getURI().getPath();
-        if (WHITE_LIST.stream().anyMatch(path::startsWith)) {
-            return chain.filter(exchange);
-        }
-
-        String authHeader = exchange.getRequest().getHeaders().getFirst("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete();
-        }
-
-        String token = authHeader.substring(7);
-        if (JwtUtil.isTokenExpired(token)) {
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete();
-        }
-
-        // 将用户信息传递到下游服务
-        var claims = JwtUtil.parseToken(token);
-        ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                .header("X-User-Id", claims.get("userId").toString())
-                .header("X-Username", claims.getSubject())
-                .header("X-Roles", claims.get("roles").toString())
-                .build();
-
-        return chain.filter(exchange.mutate().request(mutatedRequest).build());
-    }
-
-    @Override
-    public int getOrder() { return -100; }
-}
-```
-
-- [ ] **Step 5: 验证 Gateway 编译**
-
-Run: `cd library-backend-main && mvn compile -pl gateway -am`
-Expected: BUILD SUCCESS
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add -A
-git commit -m "feat: add API Gateway with JWT auth filter and route config"
-```
-
----
-
-## Task 3: Auth Service 搭建（认证授权服务）
-
-**Files:**
-- Create: `library-backend-main/auth-service/pom.xml`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/AuthApplication.java`
-- Create: `library-backend-main/auth-service/src/main/resources/application.yml`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/entity/User.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/entity/Role.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/entity/UserRole.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/entity/Permission.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/entity/RolePermission.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/mapper/UserMapper.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/mapper/RoleMapper.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/mapper/UserRoleMapper.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/mapper/PermissionMapper.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/mapper/RolePermissionMapper.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/dto/LoginRequest.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/dto/LoginResponse.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/dto/UserDTO.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/service/AuthService.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/service/UserService.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/service/RoleService.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/controller/AuthController.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/controller/UserController.java`
-- Create: `library-backend-main/auth-service/src/main/java/com/library/auth/controller/RoleController.java`
-
-**Interfaces:**
-- Consumes: `Result<T>`, `JwtUtil`, `BusinessException` from common
-- Produces: `POST /api/auth/login` → `LoginResponse { token, username, roles }`
-- Produces: `GET /api/auth/users` → `Result<List<UserDTO>>`
-- Produces: `POST /api/auth/users` → `Result<UserDTO>`
-- Produces: `GET /api/auth/roles` → `Result<List<Role>>`
-
-- [ ] **Step 1: 创建 auth-service/pom.xml**
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<project>
-    <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>com.library</groupId>
-        <artifactId>library-backend</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
-    </parent>
-    <artifactId>auth-service</artifactId>
-    <dependencies>
-        <dependency>
-            <groupId>com.library</groupId>
-            <artifactId>common</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-crypto</artifactId>
-        </dependency>
-    </dependencies>
-</project>
-```
-
-- [ ] **Step 2: 创建 application.yml**
-
-```yaml
-server:
-  port: 8081
-spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/cost_report?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
-    username: root
-    password: root
-    driver-class-name: com.mysql.cj.jdbc.Driver
-mybatis-plus:
-  configuration:
-    map-underscore-to-camel-case: true
-  global-config:
-    db-config:
-      id-type: auto
-```
-
-- [ ] **Step 3: 创建 Entity 类**
-
-```java
-// User.java
-package com.library.auth.entity;
-
-import com.baomidou.mybatisplus.annotation.*;
-import java.time.LocalDateTime;
-
-@TableName("sys_user")
-public class User {
-    @TableId(type = IdType.AUTO)
-    private Long id;
-    private String username;
-    private String password;
-    private String name;
-    private Long deptId;
-    private Integer status;
-    @TableField(fill = FieldFill.INSERT)
-    private LocalDateTime createdAt;
-    @TableField(fill = FieldFill.INSERT_UPDATE)
-    private LocalDateTime updatedAt;
-    // getters and setters omitted for brevity
-}
-```
-
-```java
-// Role.java
-package com.library.auth.entity;
-
-import com.baomidou.mybatisplus.annotation.*;
-import java.time.LocalDateTime;
-
-@TableName("sys_role")
-public class Role {
-    @TableId(type = IdType.AUTO)
-    private Long id;
-    private String name;
-    private String code;
-    private String description;
-    private String dataScope;
-    private LocalDateTime createdAt;
-    // getters and setters omitted for brevity
-}
-```
-
-```java
-// UserRole.java
-package com.library.auth.entity;
-
-import com.baomidou.mybatisplus.annotation.*;
-
-@TableName("sys_user_role")
-public class UserRole {
-    @TableId(type = IdType.AUTO)
-    private Long id;
-    private Long userId;
-    private Long roleId;
-}
-```
-
-```java
-// Permission.java
-package com.library.auth.entity;
-
-import com.baomidou.mybatisplus.annotation.*;
-
-@TableName("sys_permission")
-public class Permission {
-    @TableId(type = IdType.AUTO)
-    private Long id;
-    private String name;
-    private String code;
-    private String type;
-    private Long parentId;
-}
-```
-
-```java
-// RolePermission.java
-package com.library.auth.entity;
-
-import com.baomidou.mybatisplus.annotation.*;
-
-@TableName("sys_role_permission")
-public class RolePermission {
-    @TableId(type = IdType.AUTO)
-    private Long id;
-    private Long roleId;
-    private Long permissionId;
-}
-```
-
-- [ ] **Step 4: 创建 Mapper 接口**
-
-```java
-// UserMapper.java
-package com.library.auth.mapper;
-
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.library.auth.entity.User;
-import org.apache.ibatis.annotations.Mapper;
-
-@Mapper
-public interface UserMapper extends BaseMapper<User> {}
-```
-
-```java
-// RoleMapper.java, UserRoleMapper.java, PermissionMapper.java, RolePermissionMapper.java
-// 同上模式，继承 BaseMapper<对应Entity>
-```
-
-- [ ] **Step 5: 创建 DTO**
-
-```java
-// LoginRequest.java
-package com.library.auth.dto;
-
-public class LoginRequest {
-    private String username;
-    private String password;
-    // getters and setters
-}
-```
-
-```java
-// LoginResponse.java
-package com.library.auth.dto;
-
-import java.util.List;
-
-public class LoginResponse {
-    private String token;
-    private String username;
-    private String name;
-    private List<String> roles;
-    // constructor, getters
-}
-```
-
-```java
-// UserDTO.java
-package com.library.auth.dto;
-
-import java.util.List;
-
-public class UserDTO {
-    private Long id;
-    private String username;
-    private String name;
-    private Long deptId;
-    private Integer status;
-    private List<String> roles;
-    // getters and setters
-}
-```
-
-- [ ] **Step 6: 创建 AuthService**
-
-```java
-package com.library.auth.service;
-
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.library.auth.dto.*;
-import com.library.auth.entity.*;
-import com.library.auth.mapper.*;
-import com.library.common.exception.BusinessException;
-import com.library.common.util.JwtUtil;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.stereotype.Service;
-
-import java.util.List;
-import java.util.stream.Collectors;
-
-@Service
-public class AuthService {
-    private final UserMapper userMapper;
-    private final UserRoleMapper userRoleMapper;
-    private final RoleMapper roleMapper;
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
-
-    public AuthService(UserMapper userMapper, UserRoleMapper userRoleMapper, RoleMapper roleMapper) {
-        this.userMapper = userMapper;
-        this.userRoleMapper = userRoleMapper;
-        this.roleMapper = roleMapper;
-    }
-
-    public LoginResponse login(LoginRequest request) {
-        User user = userMapper.selectOne(
-                new LambdaQueryWrapper<User>().eq(User::getUsername, request.getUsername()));
-        if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new BusinessException(401, "用户名或密码错误");
-        }
-        if (user.getStatus() != 1) {
-            throw new BusinessException(403, "账号已被禁用");
-        }
-
-        List<UserRole> userRoles = userRoleMapper.selectList(
-                new LambdaQueryWrapper<UserRole>().eq(UserRole::getUserId, user.getId()));
-        List<String> roleCodes = userRoles.stream()
-                .map(ur -> roleMapper.selectById(ur.getRoleId()).getCode())
-                .collect(Collectors.toList());
-
-        String token = JwtUtil.generateToken(user.getId(), user.getUsername(), roleCodes);
-        return new LoginResponse(token, user.getUsername(), user.getName(), roleCodes);
-    }
-}
-```
-
-- [ ] **Step 7: 创建 UserService + RoleService**
-
-```java
-package com.library.auth.service;
-
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.library.auth.dto.UserDTO;
-import com.library.auth.entity.*;
-import com.library.auth.mapper.*;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.stream.Collectors;
-
-@Service
-public class UserService {
-    private final UserMapper userMapper;
-    private final UserRoleMapper userRoleMapper;
-    private final RoleMapper roleMapper;
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
-
-    public UserService(UserMapper userMapper, UserRoleMapper userRoleMapper, RoleMapper roleMapper) {
-        this.userMapper = userMapper;
-        this.userRoleMapper = userRoleMapper;
-        this.roleMapper = roleMapper;
-    }
-
-    public List<UserDTO> listUsers() {
-        List<User> users = userMapper.selectList(null);
-        return users.stream().map(this::toDTO).collect(Collectors.toList());
-    }
-
-    @Transactional
-    public UserDTO createUser(UserDTO dto, String rawPassword) {
-        User user = new User();
-        user.setUsername(dto.getUsername());
-        user.setPassword(passwordEncoder.encode(rawPassword));
-        user.setName(dto.getName());
-        user.setDeptId(dto.getDeptId());
-        user.setStatus(1);
-        userMapper.insert(user);
-        // 分配角色
-        if (dto.getRoles() != null) {
-            for (String roleCode : dto.getRoles()) {
-                Role role = roleMapper.selectOne(
-                        new LambdaQueryWrapper<Role>().eq(Role::getCode, roleCode));
-                if (role != null) {
-                    UserRole ur = new UserRole();
-                    ur.setUserId(user.getId());
-                    ur.setRoleId(role.getId());
-                    userRoleMapper.insert(ur);
-                }
-            }
-        }
-        return toDTO(user);
-    }
-
-    private UserDTO toDTO(User user) {
-        UserDTO dto = new UserDTO();
-        dto.setId(user.getId());
-        dto.setUsername(user.getUsername());
-        dto.setName(user.getName());
-        dto.setDeptId(user.getDeptId());
-        dto.setStatus(user.getStatus());
-        List<UserRole> urs = userRoleMapper.selectList(
-                new LambdaQueryWrapper<UserRole>().eq(UserRole::getUserId, user.getId()));
-        dto.setRoles(urs.stream()
-                .map(ur -> roleMapper.selectById(ur.getRoleId()).getCode())
-                .collect(Collectors.toList()));
-        return dto;
-    }
-}
-```
-
-- [ ] **Step 8: 创建 Controller**
-
-```java
-// AuthController.java
-package com.library.auth.controller;
-
-import com.library.auth.dto.*;
-import com.library.auth.service.AuthService;
-import com.library.common.response.Result;
-import org.springframework.web.bind.annotation.*;
-
-@RestController
-@RequestMapping("/api/auth")
-public class AuthController {
-    private final AuthService authService;
-
-    public AuthController(AuthService authService) {
-        this.authService = authService;
-    }
-
-    @PostMapping("/login")
-    public Result<LoginResponse> login(@RequestBody LoginRequest request) {
-        return Result.success(authService.login(request));
-    }
-}
-```
-
-```java
-// UserController.java
-package com.library.auth.controller;
-
-import com.library.auth.dto.UserDTO;
-import com.library.auth.service.UserService;
-import com.library.common.response.Result;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.Map;
-
-@RestController
-@RequestMapping("/api/auth/users")
-public class UserController {
-    private final UserService userService;
-
-    public UserController(UserService userService) {
-        this.userService = userService;
-    }
-
-    @GetMapping
-    public Result<List<UserDTO>> list() {
-        return Result.success(userService.listUsers());
-    }
-
-    @PostMapping
-    public Result<UserDTO> create(@RequestBody Map<String, Object> body) {
-        UserDTO dto = new UserDTO();
-        dto.setUsername((String) body.get("username"));
-        dto.setName((String) body.get("name"));
-        String password = (String) body.get("password");
-        return Result.success(userService.createUser(dto, password));
-    }
-}
-```
-
-- [ ] **Step 9: 创建 AuthApplication.java**
-
-```java
-package com.library.auth;
-
-import org.mybatis.spring.annotation.MapperScan;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.ComponentScan;
-
-@SpringBootApplication
-@MapperScan("com.library.auth.mapper")
-@ComponentScan(basePackages = {"com.library.auth", "com.library.common"})
-public class AuthApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(AuthApplication.class, args);
-    }
-}
-```
-
-- [ ] **Step 10: 验证编译**
-
-Run: `cd library-backend-main && mvn compile -pl auth-service -am`
-Expected: BUILD SUCCESS
-
-- [ ] **Step 11: Commit**
-
-```bash
-git add -A
-git commit -m "feat: add auth-service with login, user CRUD, and RBAC"
-```
-
----
-
-## Task 4: Base Data Service（基础数据服务）
-
-**Files:**
-- Create: `library-backend-main/base-data-service/pom.xml`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/BaseDataApplication.java`
-- Create: `library-backend-main/base-data-service/src/main/resources/application.yml`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/entity/Department.java`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/entity/Project.java`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/entity/BusinessLine.java`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/entity/Employee.java`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/mapper/DepartmentMapper.java`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/mapper/ProjectMapper.java`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/mapper/BusinessLineMapper.java`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/mapper/EmployeeMapper.java`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/service/DepartmentService.java`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/service/ProjectService.java`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/service/BusinessLineService.java`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/service/EmployeeService.java`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/controller/DepartmentController.java`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/controller/ProjectController.java`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/controller/BusinessLineController.java`
-- Create: `library-backend-main/base-data-service/src/main/java/com/library/basedata/controller/EmployeeController.java`
-
-**Interfaces:**
-- Consumes: `Result<T>`, `PageResult<T>`, `BusinessException` from common
-- Produces: `GET /api/base/departments` → 部门列表（支持 `?tree=true` 树形返回）
-- Produces: `POST /api/base/departments` → 创建部门
-- Produces: `GET /api/base/projects` → 项目列表（分页 `pageNum`, `pageSize`）
-- Produces: `GET /api/base/business-lines` → 业务线列表
-- Produces: `GET /api/base/employees` → 人员列表（支持 `?deptId=X&roleType=Y` 筛选）
-
-- [ ] **Step 1: 创建 base-data-service/pom.xml**
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<project>
-    <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>com.library</groupId>
-        <artifactId>library-backend</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
-    </parent>
-    <artifactId>base-data-service</artifactId>
-    <dependencies>
-        <dependency>
-            <groupId>com.library</groupId>
-            <artifactId>common</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-    </dependencies>
-</project>
-```
-
-- [ ] **Step 2: 创建 application.yml**
-
-```yaml
-server:
-  port: 8082
-spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/cost_report?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
-    username: root
-    password: root
-    driver-class-name: com.mysql.cj.jdbc.Driver
-mybatis-plus:
-  configuration:
-    map-underscore-to-camel-case: true
-  global-config:
-    db-config:
-      id-type: auto
-```
-
-- [ ] **Step 3: 创建 Entity 类**
-
-```java
-// Department.java
-package com.library.basedata.entity;
-
-import com.baomidou.mybatisplus.annotation.*;
-import java.time.LocalDateTime;
-
-@TableName("department")
-public class Department {
-    @TableId(type = IdType.AUTO)
-    private Long id;
-    private String name;
-    private String code;
-    private Long parentId;
-    private Integer status;
-    @TableField(fill = FieldFill.INSERT)
-    private LocalDateTime createdAt;
-    @TableField(fill = FieldFill.INSERT_UPDATE)
-    private LocalDateTime updatedAt;
-    // getters and setters
-}
-```
-
-```java
-// Project.java
-package com.library.basedata.entity;
-
-import com.baomidou.mybatisplus.annotation.*;
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-
-@TableName("project")
-public class Project {
-    @TableId(type = IdType.AUTO)
-    private Long id;
-    private String name;
-    private String code;
-    private BigDecimal budget;
-    private Long deptId;
-    private Long bizLineId;
-    private LocalDate startDate;
-    private LocalDate endDate;
-    private Integer status;
-    @TableField(fill = FieldFill.INSERT)
-    private LocalDateTime createdAt;
-    @TableField(fill = FieldFill.INSERT_UPDATE)
-    private LocalDateTime updatedAt;
-    // getters and setters
-}
-```
-
-```java
-// BusinessLine.java
-package com.library.basedata.entity;
-
-import com.baomidou.mybatisplus.annotation.*;
-import java.time.LocalDateTime;
-
-@TableName("business_line")
-public class BusinessLine {
-    @TableId(type = IdType.AUTO)
-    private Long id;
-    private String name;
-    private String code;
-    private String description;
-    private Integer status;
-    @TableField(fill = FieldFill.INSERT)
-    private LocalDateTime createdAt;
-    @TableField(fill = FieldFill.INSERT_UPDATE)
-    private LocalDateTime updatedAt;
-    // getters and setters
-}
-```
-
-```java
-// Employee.java
-package com.library.basedata.entity;
-
-import com.baomidou.mybatisplus.annotation.*;
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-
-@TableName("employee")
-public class Employee {
-    @TableId(type = IdType.AUTO)
-    private Long id;
-    private String name;
-    private String empNo;
-    private Long deptId;
-    private String roleType;
-    private BigDecimal salary;
-    private LocalDate entryDate;
-    private Integer status;
-    @TableField(fill = FieldFill.INSERT)
-    private LocalDateTime createdAt;
-    @TableField(fill = FieldFill.INSERT_UPDATE)
-    private LocalDateTime updatedAt;
-    // getters and setters
-}
-```
-
-- [ ] **Step 4: 创建 Mapper 接口**
-
-```java
-// DepartmentMapper.java
-package com.library.basedata.mapper;
-
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.library.basedata.entity.Department;
-import org.apache.ibatis.annotations.Mapper;
-
-@Mapper
-public interface DepartmentMapper extends BaseMapper<Department> {}
-```
-
-```java
-// ProjectMapper.java, BusinessLineMapper.java, EmployeeMapper.java
-// 同上模式，继承 BaseMapper<对应Entity>
-```
-
-- [ ] **Step 5: 创建 DepartmentService（含树形构建）**
-
-```java
-package com.library.basedata.service;
-
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.library.basedata.entity.Department;
-import com.library.basedata.mapper.DepartmentMapper;
-import com.library.common.exception.BusinessException;
-import org.springframework.stereotype.Service;
-
-import java.util.*;
-import java.util.stream.Collectors;
-
-@Service
-public class DepartmentService {
-    private final DepartmentMapper departmentMapper;
-
-    public DepartmentService(DepartmentMapper departmentMapper) {
-        this.departmentMapper = departmentMapper;
-    }
-
-    public List<Department> listAll() {
-        return departmentMapper.selectList(
-                new LambdaQueryWrapper<Department>().eq(Department::getStatus, 1));
-    }
-
-    public List<Map<String, Object>> listTree() {
-        List<Department> all = listAll();
-        Map<Long, Map<String, Object>> map = new LinkedHashMap<>();
-        for (Department d : all) {
-            Map<String, Object> node = new LinkedHashMap<>();
-            node.put("id", d.getId());
-            node.put("name", d.getName());
-            node.put("code", d.getCode());
-            node.put("parentId", d.getParentId());
-            node.put("children", new ArrayList<>());
-            map.put(d.getId(), node);
-        }
-        List<Map<String, Object>> roots = new ArrayList<>();
-        for (Department d : all) {
-            Map<String, Object> node = map.get(d.getId());
-            if (d.getParentId() == null || d.getParentId() == 0) {
-                roots.add(node);
-            } else {
-                Map<String, Object> parent = map.get(d.getParentId());
-                if (parent != null) {
-                    ((List<Map<String, Object>>) parent.get("children")).add(node);
-                } else {
-                    roots.add(node);
-                }
-            }
-        }
-        return roots;
-    }
-
-    public Department create(Department dept) {
-        Department existing = departmentMapper.selectOne(
-                new LambdaQueryWrapper<Department>().eq(Department::getCode, dept.getCode()));
-        if (existing != null) {
-            throw new BusinessException(400, "部门编码已存在: " + dept.getCode());
-        }
-        dept.setStatus(1);
-        departmentMapper.insert(dept);
-        return dept;
-    }
-
-    public Department update(Long id, Department dept) {
-        dept.setId(id);
-        departmentMapper.updateById(dept);
-        return dept;
-    }
-
-    public void delete(Long id) {
-        long childCount = departmentMapper.selectCount(
-                new LambdaQueryWrapper<Department>().eq(Department::getParentId, id));
-        if (childCount > 0) {
-            throw new BusinessException(400, "存在子部门，无法删除");
-        }
-        departmentMapper.deleteById(id);
-    }
-}
-```
-
-- [ ] **Step 6: 创建 ProjectService / BusinessLineService / EmployeeService**
-
-```java
-// ProjectService.java — 标准 CRUD + 分页
-package com.library.basedata.service;
-
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.library.basedata.entity.Project;
-import com.library.basedata.mapper.ProjectMapper;
-import com.library.common.response.PageResult;
-import org.springframework.stereotype.Service;
-
-import java.util.List;
-
-@Service
-public class ProjectService {
-    private final ProjectMapper projectMapper;
-
-    public ProjectService(ProjectMapper projectMapper) {
-        this.projectMapper = projectMapper;
-    }
-
-    public PageResult<Project> list(int pageNum, int pageSize, Long deptId) {
-        LambdaQueryWrapper<Project> wrapper = new LambdaQueryWrapper<>();
-        if (deptId != null) wrapper.eq(Project::getDeptId, deptId);
-        wrapper.orderByDesc(Project::getCreatedAt);
-        Page<Project> page = projectMapper.selectPage(new Page<>(pageNum, pageSize), wrapper);
-        return new PageResult<>(page.getRecords(), page.getTotal(), pageNum, pageSize);
-    }
-
-    public Project create(Project project) {
-        projectMapper.insert(project);
-        return project;
-    }
-
-    public Project update(Long id, Project project) {
-        project.setId(id);
-        projectMapper.updateById(project);
-        return project;
-    }
-}
-```
-
-```java
-// BusinessLineService.java — 标准 CRUD
-// EmployeeService.java — 标准 CRUD + 支持 deptId/roleType 筛选
-// 实现模式同 ProjectService，使用 LambdaQueryWrapper 条件查询
-```
-
-- [ ] **Step 7: 创建 Controller**
-
-```java
-// DepartmentController.java
-package com.library.basedata.controller;
-
-import com.library.basedata.entity.Department;
-import com.library.basedata.service.DepartmentService;
-import com.library.common.response.Result;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.Map;
-
-@RestController
-@RequestMapping("/api/base/departments")
-public class DepartmentController {
-    private final DepartmentService departmentService;
-
-    public DepartmentController(DepartmentService departmentService) {
-        this.departmentService = departmentService;
-    }
-
-    @GetMapping
-    public Result<?> list(@RequestParam(defaultValue = "false") boolean tree) {
-        if (tree) {
-            return Result.success(departmentService.listTree());
-        }
-        return Result.success(departmentService.listAll());
-    }
-
-    @PostMapping
-    public Result<Department> create(@RequestBody Department dept) {
-        return Result.success(departmentService.create(dept));
-    }
-
-    @PutMapping("/{id}")
-    public Result<Department> update(@PathVariable Long id, @RequestBody Department dept) {
-        return Result.success(departmentService.update(id, dept));
-    }
-
-    @DeleteMapping("/{id}")
-    public Result<Void> delete(@PathVariable Long id) {
-        departmentService.delete(id);
-        return Result.success(null);
-    }
-}
-```
-
-```java
-// ProjectController.java
-package com.library.basedata.controller;
-
-import com.library.basedata.entity.Project;
-import com.library.basedata.service.ProjectService;
-import com.library.common.response.PageResult;
-import com.library.common.response.Result;
-import org.springframework.web.bind.annotation.*;
-
-@RestController
-@RequestMapping("/api/base/projects")
-public class ProjectController {
-    private final ProjectService projectService;
-
-    public ProjectController(ProjectService projectService) {
-        this.projectService = projectService;
-    }
-
-    @GetMapping
-    public Result<PageResult<Project>> list(
-            @RequestParam(defaultValue = "1") int pageNum,
-            @RequestParam(defaultValue = "20") int pageSize,
-            @RequestParam(required = false) Long deptId) {
-        return Result.success(projectService.list(pageNum, pageSize, deptId));
-    }
-
-    @PostMapping
-    public Result<Project> create(@RequestBody Project project) {
-        return Result.success(projectService.create(project));
-    }
-
-    @PutMapping("/{id}")
-    public Result<Project> update(@PathVariable Long id, @RequestBody Project project) {
-        return Result.success(projectService.update(id, project));
-    }
-}
-```
-
-```java
-// BusinessLineController.java, EmployeeController.java
-// 同上模式，@RequestMapping 分别为 /api/base/business-lines 和 /api/base/employees
-```
-
-- [ ] **Step 8: 创建 BaseDataApplication.java**
-
-```java
-package com.library.basedata;
-
-import org.mybatis.spring.annotation.MapperScan;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.ComponentScan;
-
-@SpringBootApplication
-@MapperScan("com.library.basedata.mapper")
-@ComponentScan(basePackages = {"com.library.basedata", "com.library.common"})
-public class BaseDataApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(BaseDataApplication.class, args);
-    }
-}
-```
-
-- [ ] **Step 9: 验证编译**
-
-Run: `cd library-backend-main && mvn compile -pl base-data-service -am`
-Expected: BUILD SUCCESS
-
-- [ ] **Step 10: Commit**
-
-```bash
-git add -A
-git commit -m "feat: add base-data-service with department/project/business-line/employee CRUD"
-```
-
----
-
-## Task 5: Cost Core Service（成本数据服务）
-
-**Files:**
-- Create: `library-backend-main/cost-core-service/pom.xml`
-- Create: `library-backend-main/cost-core-service/src/main/java/com/library/cost/CostCoreApplication.java`
-- Create: `library-backend-main/cost-core-service/src/main/resources/application.yml`
-- Create: `library-backend-main/cost-core-service/src/main/java/com/library/cost/entity/CostRecord.java`
-- Create: `library-backend-main/cost-core-service/src/main/java/com/library/cost/mapper/CostRecordMapper.java`
-- Create: `library-backend-main/cost-core-service/src/main/java/com/library/cost/dto/CostEntryRequest.java`
-- Create: `library-backend-main/cost-core-service/src/main/java/com/library/cost/dto/ImportResultDTO.java`
-- Create: `library-backend-main/cost-core-service/src/main/java/com/library/cost/service/CostEntryService.java`
-- Create: `library-backend-main/cost-core-service/src/main/java/com/library/cost/service/CostImportService.java`
-- Create: `library-backend-main/cost-core-service/src/main/java/com/library/cost/controller/CostEntryController.java`
-- Create: `library-backend-main/cost-core-service/src/main/java/com/library/cost/controller/CostImportController.java`
-- Create: `library-backend-main/cost-core-service/src/main/java/com/library/cost/controller/CostRecordController.java`
-
-**Interfaces:**
-- Consumes: `Result<T>`, `PageResult<T>`, `BusinessException` from common
-- Produces: `POST /api/cost/entry` → 单条录入 `Result<CostRecord>`
-- Produces: `POST /api/cost/batch-entry` → 批量录入 `Result<List<CostRecord>>`
-- Produces: `GET /api/cost/import/template` → 下载 Excel 模板
-- Produces: `POST /api/cost/import` → Excel 上传导入 `Result<ImportResultDTO>`
-- Produces: `GET /api/cost/records` → 分页查询成本记录
-
-- [ ] **Step 1: 创建 cost-core-service/pom.xml**
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<project>
-    <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>com.library</groupId>
-        <artifactId>library-backend</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
-    </parent>
-    <artifactId>cost-core-service</artifactId>
-    <dependencies>
-        <dependency>
-            <groupId>com.library</groupId>
-            <artifactId>common</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.alibaba</groupId>
-            <artifactId>easyexcel</artifactId>
-        </dependency>
-    </dependencies>
-</project>
-```
-
-- [ ] **Step 2: 创建 application.yml**
-
-```yaml
-server:
-  port: 8083
-spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/cost_report?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
-    username: root
-    password: root
-    driver-class-name: com.mysql.cj.jdbc.Driver
-  servlet:
-    multipart:
-      max-file-size: 50MB
-      max-request-size: 50MB
-mybatis-plus:
-  configuration:
-    map-underscore-to-camel-case: true
-  global-config:
-    db-config:
-      id-type: auto
-```
-
-- [ ] **Step 3: 创建 CostRecord Entity**
-
-```java
-package com.library.cost.entity;
-
-import com.baomidou.mybatisplus.annotation.*;
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-
-@TableName("cost_record")
-public class CostRecord {
-    @TableId(type = IdType.AUTO)
-    private Long id;
-    private Long deptId;
-    private Long projectId;
-    private Long bizLineId;
-    private Long employeeId;
-    private String roleType;
-    private String costType;
-    private BigDecimal amount;
-    private String period;
-    private String source;
-    private String remark;
-    private Long createdBy;
-    @TableField(fill = FieldFill.INSERT)
-    private LocalDateTime createdAt;
-    @TableField(fill = FieldFill.INSERT_UPDATE)
-    private LocalDateTime updatedAt;
-    // getters and setters
-}
-```
-
-- [ ] **Step 4: 创建 DTO**
-
-```java
-// CostEntryRequest.java
-package com.library.cost.dto;
-
-import java.math.BigDecimal;
-
-public class CostEntryRequest {
-    private Long deptId;
-    private Long projectId;
-    private Long bizLineId;
-    private Long employeeId;
-    private String roleType;
-    private String costType;
-    private BigDecimal amount;
-    private String period;
-    private String remark;
-    // getters and setters
-}
-```
-
-```java
-// ImportResultDTO.java
-package com.library.cost.dto;
-
-import java.util.List;
-
-public class ImportResultDTO {
-    private int totalCount;
-    private int successCount;
-    private int failCount;
-    private List<FailDetail> failDetails;
-
-    public static class FailDetail {
-        private int rowNum;
-        private String reason;
-        public FailDetail(int rowNum, String reason) {
-            this.rowNum = rowNum; this.reason = reason;
-        }
-        // getters
-    }
-    // getters and setters
-}
-```
-
-- [ ] **Step 5: 创建 CostEntryService**
-
-```java
-package com.library.cost.service;
-
-import com.library.cost.dto.CostEntryRequest;
-import com.library.cost.entity.CostRecord;
-import com.library.cost.mapper.CostRecordMapper;
-import com.library.common.exception.BusinessException;
-import org.springframework.stereotype.Service;
-
-import java.math.BigDecimal;
-import java.util.List;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-
-@Service
-public class CostEntryService {
-    private static final Pattern PERIOD_PATTERN = Pattern.compile("^\\d{4}-(0[1-9]|1[0-2])$");
-    private final CostRecordMapper costRecordMapper;
-
-    public CostEntryService(CostRecordMapper costRecordMapper) {
-        this.costRecordMapper = costRecordMapper;
-    }
-
-    public CostRecord entry(CostEntryRequest req, Long userId) {
-        validate(req);
-        CostRecord record = new CostRecord();
-        record.setDeptId(req.getDeptId());
-        record.setProjectId(req.getProjectId());
-        record.setBizLineId(req.getBizLineId());
-        record.setEmployeeId(req.getEmployeeId());
-        record.setRoleType(req.getRoleType());
-        record.setCostType(req.getCostType());
-        record.setAmount(req.getAmount());
-        record.setPeriod(req.getPeriod());
-        record.setSource("manual");
-        record.setRemark(req.getRemark());
-        record.setCreatedBy(userId);
-        costRecordMapper.insert(record);
-        return record;
-    }
-
-    public List<CostRecord> batchEntry(List<CostEntryRequest> reqs, Long userId) {
-        return reqs.stream().map(r -> entry(r, userId)).collect(Collectors.toList());
-    }
-
-    private void validate(CostEntryRequest req) {
-        if (req.getDeptId() == null) throw new BusinessException(400, "部门不能为空");
-        if (req.getCostType() == null) throw new BusinessException(400, "成本类型不能为空");
-        if (req.getAmount() == null || req.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException(400, "金额必须大于0");
-        }
-        if (req.getPeriod() == null || !PERIOD_PATTERN.matcher(req.getPeriod()).matches()) {
-            throw new BusinessException(400, "期间格式错误，应为 YYYY-MM");
-        }
-    }
-}
-```
-
-- [ ] **Step 6: 创建 CostImportService（Excel 导入）**
-
-```java
-package com.library.cost.service;
-
-import com.alibaba.excel.EasyExcel;
-import com.alibaba.excel.context.AnalysisContext;
-import com.alibaba.excel.read.listener.ReadListener;
-import com.library.cost.dto.ImportResultDTO;
-import com.library.cost.entity.CostRecord;
-import com.library.cost.mapper.CostRecordMapper;
-import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
-@Service
-public class CostImportService {
-    private final CostRecordMapper costRecordMapper;
-
-    public CostImportService(CostRecordMapper costRecordMapper) {
-        this.costRecordMapper = costRecordMapper;
-    }
-
-    public ImportResultDTO importExcel(MultipartFile file, Long userId) throws IOException {
-        List<ImportResultDTO.FailDetail> failDetails = new ArrayList<>();
-        int[] counts = {0, 0}; // [total, success]
-
-        EasyExcel.read(file.getInputStream(), CostRecord.class, new ReadListener<CostRecord>() {
-            @Override
-            public void invoke(CostRecord data, AnalysisContext context) {
-                counts[0]++;
-                try {
-                    data.setSource("import");
-                    data.setCreatedBy(userId);
-                    costRecordMapper.insert(data);
-                    counts[1]++;
-                } catch (Exception e) {
-                    int rowNum = context.readRowHolder().getRowIndex() + 1;
-                    failDetails.add(new ImportResultDTO.FailDetail(rowNum, e.getMessage()));
-                }
-            }
-            @Override
-            public void doAfterAllAnalysed(AnalysisContext context) {}
-        }).sheet().doRead();
-
-        ImportResultDTO result = new ImportResultDTO();
-        result.setTotalCount(counts[0]);
-        result.setSuccessCount(counts[1]);
-        result.setFailCount(counts[0] - counts[1]);
-        result.setFailDetails(failDetails);
-        return result;
-    }
-}
-```
-
-- [ ] **Step 7: 创建 Controller**
-
-```java
-// CostEntryController.java
-package com.library.cost.controller;
-
-import com.library.cost.dto.CostEntryRequest;
-import com.library.cost.entity.CostRecord;
-import com.library.cost.service.CostEntryService;
-import com.library.common.response.Result;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-
-@RestController
-@RequestMapping("/api/cost")
-public class CostEntryController {
-    private final CostEntryService costEntryService;
-
-    public CostEntryController(CostEntryService costEntryService) {
-        this.costEntryService = costEntryService;
-    }
-
-    @PostMapping("/entry")
-    public Result<CostRecord> entry(@RequestBody CostEntryRequest req,
-                                     @RequestHeader(value = "X-User-Id", required = false) Long userId) {
-        return Result.success(costEntryService.entry(req, userId));
-    }
-
-    @PostMapping("/batch-entry")
-    public Result<List<CostRecord>> batchEntry(@RequestBody List<CostEntryRequest> reqs,
-                                                @RequestHeader(value = "X-User-Id", required = false) Long userId) {
-        return Result.success(costEntryService.batchEntry(reqs, userId));
-    }
-}
-```
-
-```java
-// CostImportController.java
-package com.library.cost.controller;
-
-import com.library.cost.dto.ImportResultDTO;
-import com.library.cost.service.CostImportService;
-import com.library.common.response.Result;
-import jakarta.servlet.http.HttpServletResponse;
-import com.alibaba.excel.EasyExcel;
-import com.library.cost.entity.CostRecord;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.io.IOException;
-
-@RestController
-@RequestMapping("/api/cost/import")
-public class CostImportController {
-    private final CostImportService costImportService;
-
-    public CostImportController(CostImportService costImportService) {
-        this.costImportService = costImportService;
-    }
-
-    @GetMapping("/template")
-    public void downloadTemplate(HttpServletResponse response) throws IOException {
-        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        response.setHeader("Content-Disposition", "attachment;filename=cost_import_template.xlsx");
-        EasyExcel.write(response.getOutputStream(), CostRecord.class)
-                .sheet("成本导入模板").doWrite(java.util.Collections.emptyList());
-    }
-
-    @PostMapping
-    public Result<ImportResultDTO> importExcel(@RequestParam("file") MultipartFile file,
-                                                @RequestHeader(value = "X-User-Id", required = false) Long userId)
-            throws IOException {
-        return Result.success(costImportService.importExcel(file, userId));
-    }
-}
-```
-
-```java
-// CostRecordController.java
-package com.library.cost.controller;
-
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.library.cost.entity.CostRecord;
-import com.library.cost.mapper.CostRecordMapper;
-import com.library.common.response.PageResult;
-import com.library.common.response.Result;
-import org.springframework.web.bind.annotation.*;
-
-@RestController
-@RequestMapping("/api/cost/records")
-public class CostRecordController {
-    private final CostRecordMapper costRecordMapper;
-
-    public CostRecordController(CostRecordMapper costRecordMapper) {
-        this.costRecordMapper = costRecordMapper;
-    }
-
-    @GetMapping
-    public Result<PageResult<CostRecord>> list(
-            @RequestParam(defaultValue = "1") int pageNum,
-            @RequestParam(defaultValue = "20") int pageSize,
-            @RequestParam(required = false) Long deptId,
-            @RequestParam(required = false) String period) {
-        LambdaQueryWrapper<CostRecord> wrapper = new LambdaQueryWrapper<>();
-        if (deptId != null) wrapper.eq(CostRecord::getDeptId, deptId);
-        if (period != null) wrapper.eq(CostRecord::getPeriod, period);
-        wrapper.orderByDesc(CostRecord::getCreatedAt);
-        Page<CostRecord> page = costRecordMapper.selectPage(new Page<>(pageNum, pageSize), wrapper);
-        return Result.success(new PageResult<>(page.getRecords(), page.getTotal(), pageNum, pageSize));
-    }
-
-    @PutMapping("/{id}")
-    public Result<CostRecord> update(@PathVariable Long id, @RequestBody CostRecord record) {
-        record.setId(id);
-        costRecordMapper.updateById(record);
-        return Result.success(record);
-    }
-
-    @DeleteMapping("/{id}")
-    public Result<Void> delete(@PathVariable Long id) {
-        costRecordMapper.deleteById(id);
-        return Result.success(null);
-    }
-}
-```
-
-- [ ] **Step 8: 创建 CostCoreApplication.java**
-
-```java
-package com.library.cost;
-
-import org.mybatis.spring.annotation.MapperScan;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.ComponentScan;
-
-@SpringBootApplication
-@MapperScan("com.library.cost.mapper")
-@ComponentScan(basePackages = {"com.library.cost", "com.library.common"})
-public class CostCoreApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(CostCoreApplication.class, args);
-    }
-}
-```
-
-- [ ] **Step 9: 验证编译**
-
-Run: `cd library-backend-main && mvn compile -pl cost-core-service -am`
-Expected: BUILD SUCCESS
-
-- [ ] **Step 10: Commit**
-
-```bash
-git add -A
-git commit -m "feat: add cost-core-service with entry, batch-entry, and Excel import"
-```
-
----
-
-## Task 6: Report Service（报表统计服务）
-
-**Files:**
-- Create: `library-backend-main/report-service/pom.xml`
-- Create: `library-backend-main/report-service/src/main/java/com/library/report/ReportApplication.java`
-- Create: `library-backend-main/report-service/src/main/resources/application.yml`
-- Create: `library-backend-main/report-service/src/main/java/com/library/report/dto/DashboardDTO.java`
-- Create: `library-backend-main/report-service/src/main/java/com/library/report/dto/AnalysisQuery.java`
-- Create: `library-backend-main/report-service/src/main/java/com/library/report/dto/ExportRequest.java`
-- Create: `library-backend-main/report-service/src/main/java/com/library/report/mapper/ReportMapper.java`
-- Create: `library-backend-main/report-service/src/main/resources/mapper/ReportMapper.xml`
-- Create: `library-backend-main/report-service/src/main/java/com/library/report/service/DashboardService.java`
-- Create: `library-backend-main/report-service/src/main/java/com/library/report/service/AnalysisService.java`
-- Create: `library-backend-main/report-service/src/main/java/com/library/report/service/ExportService.java`
-- Create: `library-backend-main/report-service/src/main/java/com/library/report/controller/DashboardController.java`
-- Create: `library-backend-main/report-service/src/main/java/com/library/report/controller/AnalysisController.java`
-- Create: `library-backend-main/report-service/src/main/java/com/library/report/controller/ExportController.java`
-
-**Interfaces:**
-- Consumes: `Result<T>`, `BusinessException` from common
-- Consumes: cost_record 表（同库直查，或通过 Feign 调用 cost-core-service）
-- Produces: `GET /api/report/dashboard` → `DashboardDTO { totalCost, monthCost, budgetRate, overBudgetCount, trendData, typeDistribution, deptComparison }`
-- Produces: `GET /api/report/analysis` → 多维度聚合统计
-- Produces: `GET /api/report/labor` → 人力成本统计（按 roleType 分组）
-- Produces: `GET /api/report/project` → 项目成本统计（预算 vs 实际）
-- Produces: `POST /api/report/export` → Excel 文件下载
-
-- [ ] **Step 1: 创建 report-service/pom.xml**
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<project>
-    <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>com.library</groupId>
-        <artifactId>library-backend</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
-    </parent>
-    <artifactId>report-service</artifactId>
-    <dependencies>
-        <dependency>
-            <groupId>com.library</groupId>
-            <artifactId>common</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.alibaba</groupId>
-            <artifactId>easyexcel</artifactId>
-        </dependency>
-    </dependencies>
-</project>
-```
-
-- [ ] **Step 2: 创建 application.yml**
-
-```yaml
-server:
-  port: 8084
-spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/cost_report?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
-    username: root
-    password: root
-    driver-class-name: com.mysql.cj.jdbc.Driver
-mybatis-plus:
-  mapper-locations: classpath:mapper/*.xml
-  configuration:
-    map-underscore-to-camel-case: true
-  global-config:
-    db-config:
-      id-type: auto
-```
-
-- [ ] **Step 3: 创建 DashboardDTO**
-
-```java
-package com.library.report.dto;
-
-import java.math.BigDecimal;
-import java.util.List;
-import java.util.Map;
-
-public class DashboardDTO {
-    private BigDecimal totalCost;
-    private BigDecimal monthCost;
-    private BigDecimal monthCostGrowthRate;
-    private BigDecimal budgetExecutionRate;
-    private int overBudgetProjectCount;
-    private List<Map<String, Object>> trendData;       // [{period, amount}]
-    private List<Map<String, Object>> typeDistribution; // [{costType, amount}]
-    private List<Map<String, Object>> deptComparison;   // [{deptName, amount}]
-    private List<Map<String, Object>> projectBudget;    // [{projectName, budget, actual, rate}]
-    // getters and setters
-}
-```
-
-- [ ] **Step 4: 创建 AnalysisQuery**
-
-```java
-package com.library.report.dto;
-
-public class AnalysisQuery {
-    private Long deptId;
-    private Long projectId;
-    private Long bizLineId;
-    private Long employeeId;
-    private String roleType;
-    private String periodStart;
-    private String periodEnd;
-    private String costType;
-    private String groupBy; // dept/project/bizLine/employee/roleType/month
-    // getters and setters
-}
-```
-
-- [ ] **Step 5: 创建 ReportMapper + XML**
-
-```java
-package com.library.report.mapper;
-
-import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
-import java.util.List;
-import java.util.Map;
-
-@Mapper
-public interface ReportMapper {
-    Map<String, Object> sumTotalCost(@Param("periodStart") String periodStart, @Param("periodEnd") String periodEnd);
-    Map<String, Object> sumMonthCost(@Param("period") String period);
-    List<Map<String, Object>> trendByMonth(@Param("periodStart") String periodStart, @Param("periodEnd") String periodEnd);
-    List<Map<String, Object>> distributionByType(@Param("periodStart") String periodStart, @Param("periodEnd") String periodEnd);
-    List<Map<String, Object>> comparisonByDept(@Param("periodStart") String periodStart, @Param("periodEnd") String periodEnd);
-    List<Map<String, Object>> projectBudgetAnalysis();
-    List<Map<String, Object>> laborCostByRoleType(@Param("periodStart") String periodStart, @Param("periodEnd") String periodEnd);
-    List<Map<String, Object>> analysisGroupBy(@Param("query") com.library.report.dto.AnalysisQuery query);
-}
-```
-
-```xml
-<!-- report-service/src/main/resources/mapper/ReportMapper.xml -->
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.library.report.mapper.ReportMapper">
-
-    <select id="sumTotalCost" resultType="java.util.Map">
-        SELECT COALESCE(SUM(amount), 0) as totalCost
-        FROM cost_record
-        <where>
-            <if test="periodStart != null">AND period &gt;= #{periodStart}</if>
-            <if test="periodEnd != null">AND period &lt;= #{periodEnd}</if>
-        </where>
-    </select>
-
-    <select id="sumMonthCost" resultType="java.util.Map">
-        SELECT COALESCE(SUM(amount), 0) as monthCost
-        FROM cost_record WHERE period = #{period}
-    </select>
-
-    <select id="trendByMonth" resultType="java.util.Map">
-        SELECT period, SUM(amount) as amount
-        FROM cost_record
-        WHERE period &gt;= #{periodStart} AND period &lt;= #{periodEnd}
-        GROUP BY period ORDER BY period
-    </select>
-
-    <select id="distributionByType" resultType="java.util.Map">
-        SELECT cost_type as costType, SUM(amount) as amount
-        FROM cost_record
-        WHERE period &gt;= #{periodStart} AND period &lt;= #{periodEnd}
-        GROUP BY cost_type
-    </select>
-
-    <select id="comparisonByDept" resultType="java.util.Map">
-        SELECT d.name as deptName, SUM(cr.amount) as amount
-        FROM cost_record cr
-        LEFT JOIN department d ON cr.dept_id = d.id
-        WHERE cr.period &gt;= #{periodStart} AND cr.period &lt;= #{periodEnd}
-        GROUP BY cr.dept_id, d.name ORDER BY amount DESC
-    </select>
-
-    <select id="projectBudgetAnalysis" resultType="java.util.Map">
-        SELECT p.name as projectName, p.budget,
-               COALESCE(SUM(cr.amount), 0) as actual,
-               CASE WHEN p.budget > 0 THEN ROUND(COALESCE(SUM(cr.amount), 0) / p.budget * 100, 2) ELSE 0 END as rate
-        FROM project p
-        LEFT JOIN cost_record cr ON cr.project_id = p.id
-        WHERE p.status IN (1, 2)
-        GROUP BY p.id, p.name, p.budget
-    </select>
-
-    <select id="laborCostByRoleType" resultType="java.util.Map">
-        SELECT role_type as roleType, SUM(amount) as amount, COUNT(DISTINCT employee_id) as headCount
-        FROM cost_record
-        WHERE cost_type = 'labor'
-        AND period &gt;= #{periodStart} AND period &lt;= #{periodEnd}
-        GROUP BY role_type
-    </select>
-
-    <select id="analysisGroupBy" resultType="java.util.Map">
-        SELECT
-        <choose>
-            <when test="query.groupBy == 'dept'">d.name as groupName, cr.dept_id as groupId</when>
-            <when test="query.groupBy == 'project'">p.name as groupName, cr.project_id as groupId</when>
-            <when test="query.groupBy == 'bizLine'">bl.name as groupName, cr.biz_line_id as groupId</when>
-            <when test="query.groupBy == 'employee'">e.name as groupName, cr.employee_id as groupId</when>
-            <when test="query.groupBy == 'roleType'">cr.role_type as groupName, cr.role_type as groupId</when>
-            <when test="query.groupBy == 'month'">cr.period as groupName, cr.period as groupId</when>
-            <otherwise>cr.cost_type as groupName, cr.cost_type as groupId</otherwise>
-        </choose>
-        , SUM(cr.amount) as amount, COUNT(*) as recordCount
-        FROM cost_record cr
-        LEFT JOIN department d ON cr.dept_id = d.id
-        LEFT JOIN project p ON cr.project_id = p.id
-        LEFT JOIN business_line bl ON cr.biz_line_id = bl.id
-        LEFT JOIN employee e ON cr.employee_id = e.id
-        <where>
-            <if test="query.deptId != null">AND cr.dept_id = #{query.deptId}</if>
-            <if test="query.projectId != null">AND cr.project_id = #{query.projectId}</if>
-            <if test="query.bizLineId != null">AND cr.biz_line_id = #{query.bizLineId}</if>
-            <if test="query.employeeId != null">AND cr.employee_id = #{query.employeeId}</if>
-            <if test="query.roleType != null">AND cr.role_type = #{query.roleType}</if>
-            <if test="query.costType != null">AND cr.cost_type = #{query.costType}</if>
-            <if test="query.periodStart != null">AND cr.period &gt;= #{query.periodStart}</if>
-            <if test="query.periodEnd != null">AND cr.period &lt;= #{query.periodEnd}</if>
-        </where>
-        GROUP BY groupName, groupId ORDER BY amount DESC
-    </select>
-</mapper>
-```
-
-- [ ] **Step 6: 创建 DashboardService**
-
-```java
-package com.library.report.service;
-
-import com.library.report.dto.DashboardDTO;
-import com.library.report.mapper.ReportMapper;
-import org.springframework.stereotype.Service;
-
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Map;
-
-@Service
-public class DashboardService {
-    private final ReportMapper reportMapper;
-
-    public DashboardService(ReportMapper reportMapper) {
-        this.reportMapper = reportMapper;
-    }
-
-    public DashboardDTO getDashboard() {
-        DashboardDTO dto = new DashboardDTO();
-        String currentPeriod = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
-        String yearStart = LocalDate.now().getYear() + "-01";
-        String yearEnd = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
-
-        Map<String, Object> total = reportMapper.sumTotalCost(null, null);
-        dto.setTotalCost(new BigDecimal(total.get("totalCost").toString()));
-
-        Map<String, Object> month = reportMapper.sumMonthCost(currentPeriod);
-        dto.setMonthCost(new BigDecimal(month.get("monthCost").toString()));
-
-        dto.setTrendData(reportMapper.trendByMonth(yearStart, yearEnd));
-        dto.setTypeDistribution(reportMapper.distributionByType(yearStart, yearEnd));
-        dto.setDeptComparison(reportMapper.comparisonByDept(yearStart, yearEnd));
-        dto.setProjectBudget(reportMapper.projectBudgetAnalysis());
-
-        // 计算超支项目数
-        long overBudget = dto.getProjectBudget().stream()
-                .filter(p -> new BigDecimal(p.get("rate").toString()).compareTo(new BigDecimal("100")) > 0)
-                .count();
-        dto.setOverBudgetProjectCount((int) overBudget);
-
-        // 预算执行率 = 总消耗 / 总预算
-        BigDecimal totalBudget = dto.getProjectBudget().stream()
-                .map(p -> new BigDecimal(p.get("budget").toString()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        if (totalBudget.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal totalActual = dto.getProjectBudget().stream()
-                    .map(p -> new BigDecimal(p.get("actual").toString()))
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-            dto.setBudgetExecutionRate(totalActual.divide(totalBudget, 4, java.math.RoundingMode.HALF_UP)
-                    .multiply(new BigDecimal("100")));
-        } else {
-            dto.setBudgetExecutionRate(BigDecimal.ZERO);
-        }
-
-        return dto;
-    }
-}
-```
-
-- [ ] **Step 7: 创建 AnalysisService**
-
-```java
-package com.library.report.service;
-
-import com.library.report.dto.AnalysisQuery;
-import com.library.report.mapper.ReportMapper;
-import org.springframework.stereotype.Service;
-
-import java.util.List;
-import java.util.Map;
-
-@Service
-public class AnalysisService {
-    private final ReportMapper reportMapper;
-
-    public AnalysisService(ReportMapper reportMapper) {
-        this.reportMapper = reportMapper;
-    }
-
-    public List<Map<String, Object>> analyze(AnalysisQuery query) {
-        return reportMapper.analysisGroupBy(query);
-    }
-
-    public List<Map<String, Object>> laborCost(String periodStart, String periodEnd) {
-        return reportMapper.laborCostByRoleType(periodStart, periodEnd);
-    }
-
-    public List<Map<String, Object>> projectCost() {
-        return reportMapper.projectBudgetAnalysis();
-    }
-}
-```
-
-- [ ] **Step 8: 创建 ExportService（Excel 导出）**
-
-```java
-package com.library.report.service;
-
-import com.alibaba.excel.EasyExcel;
-import com.library.report.dto.AnalysisQuery;
-import com.library.report.mapper.ReportMapper;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.stereotype.Service;
-
-import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Map;
-
-@Service
-public class ExportService {
-    private final ReportMapper reportMapper;
-
-    public ExportService(ReportMapper reportMapper) {
-        this.reportMapper = reportMapper;
-    }
-
-    public void exportExcel(AnalysisQuery query, HttpServletResponse response) throws IOException {
-        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        response.setHeader("Content-Disposition",
-                "attachment;filename=" + URLEncoder.encode("成本统计报表.xlsx", StandardCharsets.UTF_8));
-
-        List<Map<String, Object>> data = reportMapper.analysisGroupBy(query);
-
-        try (var writer = EasyExcel.write(response.getOutputStream()).build()) {
-            // Sheet 1: 汇总
-            var sheet1 = com.alibaba.excel.write.metadata.WriteSheet.writeSheet(0, "汇总").build();
-            writer.write(data, sheet1);
-
-            // Sheet 2: 项目成本
-            var projectData = reportMapper.projectBudgetAnalysis();
-            var sheet2 = com.alibaba.excel.write.metadata.WriteSheet.writeSheet(1, "项目成本").build();
-            writer.write(projectData, sheet2);
-
-            // Sheet 3: 人力成本
-            String periodStart = query.getPeriodStart() != null ? query.getPeriodStart() : "2024-01";
-            String periodEnd = query.getPeriodEnd() != null ? query.getPeriodEnd() : "2025-12";
-            var laborData = reportMapper.laborCostByRoleType(periodStart, periodEnd);
-            var sheet3 = com.alibaba.excel.write.metadata.WriteSheet.writeSheet(2, "人力成本").build();
-            writer.write(laborData, sheet3);
-        }
-    }
-}
-```
-
-- [ ] **Step 9: 创建 Controller**
-
-```java
-// DashboardController.java
-package com.library.report.controller;
-
-import com.library.common.response.Result;
-import com.library.report.dto.DashboardDTO;
-import com.library.report.service.DashboardService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
-@RestController
-@RequestMapping("/api/report/dashboard")
-public class DashboardController {
-    private final DashboardService dashboardService;
-
-    public DashboardController(DashboardService dashboardService) {
-        this.dashboardService = dashboardService;
-    }
-
-    @GetMapping
-    public Result<DashboardDTO> getDashboard() {
-        return Result.success(dashboardService.getDashboard());
-    }
-}
-```
-
-```java
-// AnalysisController.java
-package com.library.report.controller;
-
-import com.library.common.response.Result;
-import com.library.report.dto.AnalysisQuery;
-import com.library.report.service.AnalysisService;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.Map;
-
-@RestController
-@RequestMapping("/api/report")
-public class AnalysisController {
-    private final AnalysisService analysisService;
-
-    public AnalysisController(AnalysisService analysisService) {
-        this.analysisService = analysisService;
-    }
-
-    @GetMapping("/analysis")
-    public Result<List<Map<String, Object>>> analyze(AnalysisQuery query) {
-        return Result.success(analysisService.analyze(query));
-    }
-
-    @GetMapping("/labor")
-    public Result<List<Map<String, Object>>> labor(
-            @RequestParam String periodStart, @RequestParam String periodEnd) {
-        return Result.success(analysisService.laborCost(periodStart, periodEnd));
-    }
-
-    @GetMapping("/project")
-    public Result<List<Map<String, Object>>> project() {
-        return Result.success(analysisService.projectCost());
-    }
-}
-```
-
-```java
-// ExportController.java
-package com.library.report.controller;
-
-import com.library.report.dto.AnalysisQuery;
-import com.library.report.service.ExportService;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.web.bind.annotation.*;
-
-import java.io.IOException;
-
-@RestController
-@RequestMapping("/api/report/export")
-public class ExportController {
-    private final ExportService exportService;
-
-    public ExportController(ExportService exportService) {
-        this.exportService = exportService;
-    }
-
-    @PostMapping
-    public void export(@RequestBody AnalysisQuery query, HttpServletResponse response) throws IOException {
-        exportService.exportExcel(query, response);
-    }
-}
-```
-
-- [ ] **Step 10: 创建 ReportApplication.java**
-
-```java
-package com.library.report;
-
-import org.mybatis.spring.annotation.MapperScan;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.ComponentScan;
-
-@SpringBootApplication
-@MapperScan("com.library.report.mapper")
-@ComponentScan(basePackages = {"com.library.report", "com.library.common"})
-public class ReportApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(ReportApplication.class, args);
-    }
-}
-```
-
-- [ ] **Step 11: 验证编译**
-
-Run: `cd library-backend-main && mvn compile -pl report-service -am`
-Expected: BUILD SUCCESS
-
-- [ ] **Step 12: Commit**
-
-```bash
-git add -A
-git commit -m "feat: add report-service with dashboard, analysis, labor/project stats, and Excel export"
-```
-
----
-
-## Task 7: 前端项目脚手架搭建
+## Task 1: 前端项目脚手架搭建
 
 **Files:**
 - Create: `library-frontend-main/package.json`
@@ -2726,10 +114,10 @@ git commit -m "feat: add report-service with dashboard, analysis, labor/project 
 - Create: `library-frontend-main/src/store/useAuthStore.ts`
 
 **Interfaces:**
-- Produces: Axios 实例 `request` — 自动附加 JWT Token、统一错误处理
+- Produces: Axios 实例 `request` — 自动附加 JWT Token、统一错误处理、401 自动跳转登录
 - Produces: `ApiResponse<T>` 类型 — `{ code: number; message: string; data: T; timestamp: number }`
 - Produces: `PageResponse<T>` 类型 — `{ list: T[]; total: number; pageNum: number; pageSize: number }`
-- Produces: `useAuthStore` — Zustand store，管理 token/user/login/logout
+- Produces: `useAuthStore` — Zustand store，管理 token/user/login/logout/hasRole
 
 - [ ] **Step 1: 初始化项目**
 
@@ -2915,23 +303,73 @@ export const ROLE_TYPES = [
   { label: '产品', value: 'product' },
   { label: '运维', value: 'ops' },
 ];
+
+export const TIME_GRANULARITY = [
+  { label: '月份', value: 'month' },
+  { label: '季度', value: 'quarter' },
+  { label: '年度', value: 'year' },
+];
 ```
 
-- [ ] **Step 8: 验证项目启动**
+- [ ] **Step 8: 创建入口文件 src/main.tsx + src/App.tsx**
 
-Run: `cd library-frontend-main && pnpm dev`
-Expected: Vite dev server starts on http://localhost:5173
+```tsx
+// src/main.tsx
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { ConfigProvider } from 'antd';
+import zhCN from 'antd/locale/zh_CN';
+import App from './App';
 
-- [ ] **Step 9: Commit**
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <ConfigProvider locale={zhCN}>
+      <App />
+    </ConfigProvider>
+  </React.StrictMode>
+);
+```
 
+```tsx
+// src/App.tsx
+import React from 'react';
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
+
+const router = createBrowserRouter([
+  { path: '/login', lazy: () => import('./pages/Login') },
+  {
+    path: '/',
+    lazy: () => import('./layouts/MainLayout'),
+    children: [
+      { index: true, element: <Navigate to="/dashboard" replace /> },
+      { path: 'dashboard', lazy: () => import('./pages/Dashboard') },
+      { path: 'cost/analysis', lazy: () => import('./pages/CostAnalysis') },
+      { path: 'cost/labor', lazy: () => import('./pages/LaborCost') },
+      { path: 'cost/project', lazy: () => import('./pages/ProjectCost') },
+      { path: 'cost/entry', lazy: () => import('./pages/DataEntry') },
+      { path: 'cost/import', lazy: () => import('./pages/DataImport') },
+      { path: 'cost/export', lazy: () => import('./pages/ReportExport') },
+      { path: 'system/users', lazy: () => import('./pages/System/UserManage') },
+      { path: 'system/roles', lazy: () => import('./pages/System/RoleManage') },
+    ],
+  },
+]);
+
+const App: React.FC = () => <RouterProvider router={router} />;
+export default App;
+```
+
+- [ ] **Step 9: 验证构建**
+
+Run:
 ```bash
-git add -A
-git commit -m "feat: init frontend scaffold with Vite, React, Ant Design, ECharts, Zustand"
+cd library-frontend-main && pnpm build
 ```
+Expected: 构建成功（页面文件尚未创建，路由 lazy import 暂不报错即可；若报错则先创建空壳页面文件）
 
 ---
 
-## Task 8: 前端布局 + 登录页 + 路由守卫
+## Task 2: 前端布局 + 登录页 + 路由守卫
 
 **Files:**
 - Create: `library-frontend-main/src/layouts/MainLayout.tsx`
@@ -2939,13 +377,18 @@ git commit -m "feat: init frontend scaffold with Vite, React, Ant Design, EChart
 - Create: `library-frontend-main/src/pages/Login/index.tsx`
 - Create: `library-frontend-main/src/api/auth.ts`
 - Create: `library-frontend-main/src/types/auth.ts`
-- Modify: `library-frontend-main/src/App.tsx`
 
 **Interfaces:**
 - Consumes: `useAuthStore` from store
-- Produces: `MainLayout` — Ant Design ProLayout 风格侧边栏布局
-- Produces: `AuthRoute` — 路由守卫组件，未登录重定向到 /login
-- Produces: `POST /api/auth/login` 前端调用
+- Consumes: `POST /api/auth/login` → `{ token, username, name, roles }`
+- Produces: `MainLayout` — Ant Design Sider 侧边栏布局，含菜单导航和用户退出
+- Produces: `AuthRoute` — 路由守卫组件，未登录重定向到 /login，角色不匹配重定向到 /dashboard
+
+**跨库契约:**
+| 接口 | 方法 | 路径 | 请求体 | 响应 data |
+|------|------|------|--------|----------|
+| 登录 | POST | `/api/auth/login` | `{ username: string, password: string }` | `{ token: string, username: string, name: string, roles: string[] }` |
+| 登出 | POST | `/api/auth/logout` | — | `null` |
 
 - [ ] **Step 1: 创建 auth API + 类型**
 
@@ -2968,6 +411,9 @@ export interface LoginResult {
 
 export const loginApi = (params: LoginParams): Promise<ApiResponse<LoginResult>> =>
   request.post('/auth/login', params);
+
+export const logoutApi = (): Promise<ApiResponse<null>> =>
+  request.post('/auth/logout');
 ```
 
 ```typescript
@@ -3007,7 +453,13 @@ const menuItems = [
   { key: '/cost/entry', icon: <EditOutlined />, label: '数据录入' },
   { key: '/cost/import', icon: <UploadOutlined />, label: '数据导入' },
   { key: '/cost/export', icon: <DownloadOutlined />, label: '报表导出' },
-  { key: '/system', icon: <SettingOutlined />, label: '系统管理' },
+  {
+    key: '/system', icon: <SettingOutlined />, label: '系统管理',
+    children: [
+      { key: '/system/users', label: '用户管理' },
+      { key: '/system/roles', label: '角色管理' },
+    ],
+  },
 ];
 
 const MainLayout: React.FC = () => {
@@ -3030,6 +482,7 @@ const MainLayout: React.FC = () => {
           theme="dark"
           mode="inline"
           selectedKeys={[location.pathname]}
+          defaultOpenKeys={['/system']}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
         />
@@ -3138,62 +591,17 @@ const Login: React.FC = () => {
 export default Login;
 ```
 
-- [ ] **Step 5: 配置 App.tsx 路由**
+- [ ] **Step 5: 验证**
 
-```tsx
-// src/App.tsx
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider } from 'antd';
-import zhCN from 'antd/locale/zh_CN';
-import MainLayout from './layouts/MainLayout';
-import AuthRoute from './components/AuthRoute';
-import Login from './pages/Login';
-
-// Lazy load pages
-const Dashboard = React.lazy(() => import('./pages/Dashboard'));
-const CostAnalysis = React.lazy(() => import('./pages/CostAnalysis'));
-const LaborCost = React.lazy(() => import('./pages/LaborCost'));
-const ProjectCost = React.lazy(() => import('./pages/ProjectCost'));
-const DataEntry = React.lazy(() => import('./pages/DataEntry'));
-const DataImport = React.lazy(() => import('./pages/DataImport'));
-const ReportExport = React.lazy(() => import('./pages/ReportExport'));
-
-const App: React.FC = () => (
-  <ConfigProvider locale={zhCN}>
-    <BrowserRouter>
-      <React.Suspense fallback={<div style={{ padding: 48, textAlign: 'center' }}>加载中...</div>}>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/" element={<AuthRoute><MainLayout /></AuthRoute>}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="cost/analysis" element={<CostAnalysis />} />
-            <Route path="cost/labor" element={<LaborCost />} />
-            <Route path="cost/project" element={<ProjectCost />} />
-            <Route path="cost/entry" element={<DataEntry />} />
-            <Route path="cost/import" element={<DataImport />} />
-            <Route path="cost/export" element={<ReportExport />} />
-          </Route>
-        </Routes>
-      </React.Suspense>
-    </BrowserRouter>
-  </ConfigProvider>
-);
-
-export default App;
-```
-
-- [ ] **Step 6: Commit**
-
+Run:
 ```bash
-git add -A
-git commit -m "feat: add MainLayout, Login page, AuthRoute guard, and router config"
+cd library-frontend-main && pnpm dev
 ```
+Expected: 访问 http://localhost:5173 自动跳转到 /login，展示登录页面
 
 ---
 
-## Task 9: Dashboard 页面
+## Task 3: Dashboard 页面
 
 **Files:**
 - Create: `library-frontend-main/src/api/report.ts`
@@ -3205,8 +613,13 @@ git commit -m "feat: add MainLayout, Login page, AuthRoute guard, and router con
 - Create: `library-frontend-main/src/pages/Dashboard/index.tsx`
 
 **Interfaces:**
-- Consumes: `GET /api/report/dashboard` → `DashboardDTO`
-- Produces: Dashboard 页面含 4 个统计卡片 + 4 个图表（折线图/饼图/柱状图/进度条）
+- Consumes: `GET /api/report/dashboard` → `DashboardData`
+- Produces: Dashboard 页面含 4 个统计卡片（总成本、本月成本、预算执行率、超支预警）+ 4 个图表（趋势折线图、成本占比饼图、部门对比柱状图、项目预算执行进度条）
+
+**跨库契约:**
+| 接口 | 方法 | 路径 | 响应 data 结构 |
+|------|------|------|---------------|
+| Dashboard | GET | `/api/report/dashboard` | `{ totalCost, monthCost, monthCostGrowthRate, budgetExecutionRate, overBudgetProjectCount, trendData[], typeDistribution[], deptComparison[], projectBudget[] }` |
 
 - [ ] **Step 1: 创建 report API + 类型**
 
@@ -3236,6 +649,7 @@ export interface AnalysisParams {
   periodStart?: string;
   periodEnd?: string;
   costType?: string;
+  timeGranularity?: string;
   groupBy?: string;
 }
 
@@ -3245,11 +659,14 @@ export const getDashboard = (): Promise<ApiResponse<DashboardData>> =>
 export const getAnalysis = (params: AnalysisParams): Promise<ApiResponse<any[]>> =>
   request.get('/report/analysis', { params });
 
-export const getLaborCost = (params: { periodStart: string; periodEnd: string }): Promise<ApiResponse<any[]>> =>
+export const getLaborCost = (params: { periodStart: string; periodEnd: string; timeGranularity?: string }): Promise<ApiResponse<any[]>> =>
   request.get('/report/labor', { params });
 
 export const getProjectCost = (): Promise<ApiResponse<any[]>> =>
   request.get('/report/project');
+
+export const getTrend = (params: { periodStart: string; periodEnd: string; timeGranularity?: string }): Promise<ApiResponse<any[]>> =>
+  request.get('/report/trend', { params });
 
 export const exportReport = (params: AnalysisParams): Promise<Blob> =>
   request.post('/report/export', params, { responseType: 'blob' });
@@ -3275,6 +692,11 @@ export interface ProjectCostItem {
   budget: number;
   actual: number;
   rate: number;
+}
+
+export interface TrendItem {
+  period: string;
+  amount: number;
 }
 ```
 
@@ -3401,85 +823,76 @@ export default BarChart;
 ```tsx
 // src/pages/Dashboard/index.tsx
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Card, Progress, Spin, Table } from 'antd';
-import { DollarOutlined, CalendarOutlined, PieChartOutlined, WarningOutlined } from '@ant-design/icons';
+import { Row, Col, Card, Progress, Typography, Spin } from 'antd';
+import { WarningOutlined } from '@ant-design/icons';
 import StatCard from '../../components/StatCard';
 import LineChart from '../../components/Charts/LineChart';
 import PieChart from '../../components/Charts/PieChart';
 import BarChart from '../../components/Charts/BarChart';
 import { getDashboard, DashboardData } from '../../api/report';
-import { formatMoney } from '../../utils/format';
+import { formatMoney, formatPercent } from '../../utils/format';
+
+const { Text } = Typography;
 
 const Dashboard: React.FC = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getDashboard().then(res => {
-      setData(res.data);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    getDashboard()
+      .then(res => setData(res.data))
+      .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
-  if (!data) return <div>加载失败</div>;
-
-  const projectColumns = [
-    { title: '项目名称', dataIndex: 'projectName', key: 'projectName' },
-    { title: '预算', dataIndex: 'budget', key: 'budget', render: (v: number) => formatMoney(v) },
-    { title: '实际消耗', dataIndex: 'actual', key: 'actual', render: (v: number) => formatMoney(v) },
-    {
-      title: '执行率', dataIndex: 'rate', key: 'rate',
-      render: (v: number) => (
-        <Progress
-          percent={v}
-          status={v > 100 ? 'exception' : v > 80 ? 'normal' : 'success'}
-          size="small"
-          style={{ width: 120 }}
-        />
-      ),
-    },
-  ];
+  if (loading || !data) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
 
   return (
     <div>
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
-          <StatCard title="总成本" value={data.totalCost} prefix={<DollarOutlined />} precision={2} />
+      <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Col span={6}>
+          <StatCard title="总成本" value={data.totalCost} prefix="¥" precision={2} growthRate={data.monthCostGrowthRate} />
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <StatCard title="本月成本" value={data.monthCost} prefix={<CalendarOutlined />} precision={2} />
+        <Col span={6}>
+          <StatCard title="本月成本" value={data.monthCost} prefix="¥" precision={2} />
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <StatCard title="预算执行率" value={data.budgetExecutionRate} prefix={<PieChartOutlined />} suffix="%" />
+        <Col span={6}>
+          <StatCard title="预算执行率" value={data.budgetExecutionRate} suffix="%" precision={1} />
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <StatCard title="超支预警" value={data.overBudgetProjectCount} prefix={<WarningOutlined />} suffix="个项目" precision={0} />
-        </Col>
-      </Row>
-
-      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col xs={24} lg={12}>
-          <Card><LineChart title="月度成本趋势" data={data.trendData || []} /></Card>
-        </Col>
-        <Col xs={24} lg={12}>
-          <Card><PieChart title="成本类型占比" data={data.typeDistribution || []} /></Card>
+        <Col span={6}>
+          <Card>
+            <Statistic title="超支预警" value={data.overBudgetProjectCount} suffix="个项目" prefix={<WarningOutlined style={{ color: '#faad14' }} />} />
+          </Card>
         </Col>
       </Row>
 
-      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col xs={24} lg={12}>
-          <Card><BarChart title="部门成本对比" data={data.deptComparison || []} /></Card>
+      <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Col span={12}>
+          <Card><LineChart title="月度成本趋势" data={data.trendData} /></Card>
         </Col>
-        <Col xs={24} lg={12}>
+        <Col span={12}>
+          <Card><PieChart title="成本类型占比" data={data.typeDistribution} /></Card>
+        </Col>
+      </Row>
+
+      <Row gutter={16}>
+        <Col span={12}>
+          <Card><BarChart title="部门成本对比" data={data.deptComparison} /></Card>
+        </Col>
+        <Col span={12}>
           <Card title="项目预算执行">
-            <Table
-              dataSource={data.projectBudget || []}
-              columns={projectColumns}
-              rowKey="projectName"
-              pagination={false}
-              size="small"
-            />
+            {data.projectBudget.map((p, i) => (
+              <div key={i} style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text>{p.projectName}</Text>
+                  <Text type="secondary">{formatPercent(p.rate)}</Text>
+                </div>
+                <Progress percent={Math.min(p.rate, 100)} status={p.rate > 100 ? 'exception' : 'active'} showInfo={false} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                  <Text type="secondary">预算: {formatMoney(p.budget)}</Text>
+                  <Text type="secondary">实际: {formatMoney(p.actual)}</Text>
+                </div>
+              </div>
+            ))}
           </Card>
         </Col>
       </Row>
@@ -3490,21 +903,23 @@ const Dashboard: React.FC = () => {
 export default Dashboard;
 ```
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: 验证**
 
+Run:
 ```bash
-git add -A
-git commit -m "feat: add Dashboard page with stat cards, line/pie/bar charts, and project budget table"
+cd library-frontend-main && pnpm dev
 ```
+Expected: 登录后进入 /dashboard，页面渲染 4 个统计卡片 + 4 个图表区域（后端未启动时显示 loading 或报错，结构正确即可）
 
 ---
 
-## Task 10: 成本统计分析页面 + 人力成本 + 项目成本
+## Task 4: 成本统计分析 + 人力成本 + 项目成本页面
 
 **Files:**
 - Create: `library-frontend-main/src/components/FilterBar/index.tsx`
 - Create: `library-frontend-main/src/api/baseData.ts`
 - Create: `library-frontend-main/src/types/baseData.ts`
+- Create: `library-frontend-main/src/store/useFilterStore.ts`
 - Create: `library-frontend-main/src/pages/CostAnalysis/index.tsx`
 - Create: `library-frontend-main/src/pages/LaborCost/index.tsx`
 - Create: `library-frontend-main/src/pages/ProjectCost/index.tsx`
@@ -3512,9 +927,20 @@ git commit -m "feat: add Dashboard page with stat cards, line/pie/bar charts, an
 **Interfaces:**
 - Consumes: `GET /api/report/analysis`, `GET /api/report/labor`, `GET /api/report/project`
 - Consumes: `GET /api/base/departments`, `GET /api/base/projects`, `GET /api/base/business-lines`, `GET /api/base/employees`
-- Produces: 成本分析页 — 筛选栏 + 表格 + 图表联动
-- Produces: 人力成本页 — 按岗位类型统计
-- Produces: 项目成本页 — 预算 vs 实际对比
+- Produces: 成本分析页 — 筛选栏 + 表格 + 图表联动，支持 groupBy 多维度切换
+- Produces: 人力成本页 — 按岗位类型（开发/测试/产品/运维）统计，支持时间粒度切换
+- Produces: 项目成本页 — 预算 vs 实际对比，预算占比进度条，预计超支金额标签
+
+**跨库契约:**
+| 接口 | 方法 | 路径 | 关键参数 | 响应 data |
+|------|------|------|---------|----------|
+| 成本分析 | GET | `/api/report/analysis` | `deptId, projectId, bizLineId, periodStart, periodEnd, costType, timeGranularity, groupBy` | `AnalysisItem[]` |
+| 人力成本 | GET | `/api/report/labor` | `periodStart, periodEnd, timeGranularity` | `LaborCostItem[]` |
+| 项目成本 | GET | `/api/report/project` | — | `ProjectCostItem[]` |
+| 部门列表 | GET | `/api/base/departments` | — | `Department[]` |
+| 项目列表 | GET | `/api/base/projects` | `pageNum, pageSize` | `PageResponse<Project>` |
+| 业务线列表 | GET | `/api/base/business-lines` | — | `BusinessLine[]` |
+| 人员列表 | GET | `/api/base/employees` | `deptId?, roleType?` | `Employee[]` |
 
 - [ ] **Step 1: 创建 baseData API + 类型**
 
@@ -3546,16 +972,51 @@ export const getEmployees = (params?: { deptId?: number; roleType?: string }): P
   request.get('/base/employees', { params });
 ```
 
-- [ ] **Step 2: 创建 FilterBar 通用筛选组件**
+```typescript
+// src/types/baseData.ts
+export type { Department, Project, BusinessLine, Employee } from '../api/baseData';
+```
+
+- [ ] **Step 2: 创建 FilterStore**
+
+```typescript
+// src/store/useFilterStore.ts
+import { create } from 'zustand';
+
+interface FilterState {
+  deptId?: number;
+  projectId?: number;
+  bizLineId?: number;
+  periodStart?: string;
+  periodEnd?: string;
+  costType?: string;
+  timeGranularity: string;
+  groupBy: string;
+  setFilter: (partial: Partial<FilterState>) => void;
+  reset: () => void;
+}
+
+const initialState = {
+  timeGranularity: 'month',
+  groupBy: 'dept',
+};
+
+export const useFilterStore = create<FilterState>((set) => ({
+  ...initialState,
+  setFilter: (partial) => set(partial),
+  reset: () => set(initialState),
+}));
+```
+
+- [ ] **Step 3: 创建 FilterBar 通用筛选组件**
 
 ```tsx
 // src/components/FilterBar/index.tsx
 import React, { useEffect, useState } from 'react';
-import { Form, Select, DatePicker, Button, Space, Row, Col } from 'antd';
+import { Form, Select, DatePicker, Button, Space } from 'antd';
 import { SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import { getDepartments, getProjects, getBusinessLines, Department, Project, BusinessLine } from '../../api/baseData';
-import { COST_TYPES, ROLE_TYPES } from '../../utils/constants';
-import dayjs from 'dayjs';
+import { COST_TYPES, ROLE_TYPES, TIME_GRANULARITY } from '../../utils/constants';
 
 const { RangePicker } = DatePicker;
 
@@ -3564,9 +1025,10 @@ interface FilterBarProps {
   showCostType?: boolean;
   showRoleType?: boolean;
   showGroupBy?: boolean;
+  showTimeGranularity?: boolean;
 }
 
-const FilterBar: React.FC<FilterBarProps> = ({ onSearch, showCostType, showRoleType, showGroupBy }) => {
+const FilterBar: React.FC<FilterBarProps> = ({ onSearch, showCostType, showRoleType, showGroupBy, showTimeGranularity }) => {
   const [form] = Form.useForm();
   const [depts, setDepts] = useState<Department[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -3623,8 +1085,13 @@ const FilterBar: React.FC<FilterBarProps> = ({ onSearch, showCostType, showRoleT
           <Select style={{ width: 120 }} defaultValue="dept" options={[
             { label: '部门', value: 'dept' }, { label: '项目', value: 'project' },
             { label: '业务线', value: 'bizLine' }, { label: '人员', value: 'employee' },
-            { label: '岗位', value: 'roleType' }, { label: '月份', value: 'month' },
+            { label: '岗位', value: 'roleType' },
           ]} />
+        </Form.Item>
+      )}
+      {showTimeGranularity && (
+        <Form.Item name="timeGranularity" label="时间粒度">
+          <Select style={{ width: 100 }} defaultValue="month" options={TIME_GRANULARITY} />
         </Form.Item>
       )}
       <Form.Item name="periodRange" label="期间">
@@ -3643,7 +1110,7 @@ const FilterBar: React.FC<FilterBarProps> = ({ onSearch, showCostType, showRoleT
 export default FilterBar;
 ```
 
-- [ ] **Step 3: 创建 CostAnalysis 页面**
+- [ ] **Step 4: 创建 CostAnalysis 页面**
 
 ```tsx
 // src/pages/CostAnalysis/index.tsx
@@ -3677,7 +1144,7 @@ const CostAnalysis: React.FC = () => {
 
   return (
     <div>
-      <FilterBar onSearch={fetchData} showCostType showGroupBy />
+      <FilterBar onSearch={fetchData} showCostType showGroupBy showTimeGranularity />
       <Row gutter={16}>
         <Col span={14}>
           <Card title="统计结果">
@@ -3695,7 +1162,7 @@ const CostAnalysis: React.FC = () => {
 export default CostAnalysis;
 ```
 
-- [ ] **Step 4: 创建 LaborCost 页面**
+- [ ] **Step 5: 创建 LaborCost 页面**
 
 ```tsx
 // src/pages/LaborCost/index.tsx
@@ -3715,7 +1182,7 @@ const LaborCost: React.FC = () => {
     setLoading(true);
     const periodStart = params.periodStart || dayjs().startOf('year').format('YYYY-MM');
     const periodEnd = params.periodEnd || dayjs().format('YYYY-MM');
-    getLaborCost({ periodStart, periodEnd })
+    getLaborCost({ periodStart, periodEnd, timeGranularity: params.timeGranularity })
       .then(res => setData(res.data))
       .finally(() => setLoading(false));
   };
@@ -3724,7 +1191,7 @@ const LaborCost: React.FC = () => {
 
   const columns = [
     { title: '岗位类型', dataIndex: 'roleType', key: 'roleType', render: (v: string) => roleTypeLabel[v] || v },
-    { title: '人力成本', dataIndex: 'amount', key: 'amount', render: (v: number) => formatMoney(v) },
+    { title: '人力成本', dataIndex: 'amount', key: 'amount', render: (v: number) => formatMoney(v), sorter: (a: any, b: any) => a.amount - b.amount },
     { title: '人数', dataIndex: 'headCount', key: 'headCount' },
   ];
 
@@ -3732,7 +1199,7 @@ const LaborCost: React.FC = () => {
 
   return (
     <div>
-      <FilterBar onSearch={fetchData} showRoleType />
+      <FilterBar onSearch={fetchData} showRoleType showTimeGranularity />
       <Row gutter={16}>
         <Col span={14}>
           <Card title="人力成本统计">
@@ -3750,7 +1217,7 @@ const LaborCost: React.FC = () => {
 export default LaborCost;
 ```
 
-- [ ] **Step 5: 创建 ProjectCost 页面**
+- [ ] **Step 6: 创建 ProjectCost 页面**
 
 ```tsx
 // src/pages/ProjectCost/index.tsx
@@ -3783,7 +1250,7 @@ const ProjectCost: React.FC = () => {
     {
       title: '预计超支', key: 'overBudget',
       render: (_: any, record: any) => {
-        const over = record.actual - record.budget;
+        const over = Math.max(record.actual - record.budget, 0);
         return over > 0
           ? <Tag color="red">{formatMoney(over)}</Tag>
           : <Tag color="green">未超支</Tag>;
@@ -3801,16 +1268,17 @@ const ProjectCost: React.FC = () => {
 export default ProjectCost;
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: 验证**
 
+Run:
 ```bash
-git add -A
-git commit -m "feat: add CostAnalysis, LaborCost, and ProjectCost pages with filter and charts"
+cd library-frontend-main && pnpm build
 ```
+Expected: TypeScript 编译通过，无类型错误
 
 ---
 
-## Task 11: 数据录入 + 数据导入 + 报表导出页面
+## Task 5: 数据录入 + 数据导入 + 报表导出页面
 
 **Files:**
 - Create: `library-frontend-main/src/api/cost.ts`
@@ -3821,10 +1289,20 @@ git commit -m "feat: add CostAnalysis, LaborCost, and ProjectCost pages with fil
 - Create: `library-frontend-main/src/components/ExportButton/index.tsx`
 
 **Interfaces:**
-- Consumes: `POST /api/cost/entry`, `POST /api/cost/import`, `GET /api/cost/import/template`, `POST /api/report/export`
-- Produces: 数据录入表单页（选择维度 + 输入金额）
-- Produces: 数据导入页（模板下载 + 文件上传 + 结果展示）
-- Produces: 报表导出页（选择条件 + 导出 Excel）
+- Consumes: `POST /api/cost/entry`, `POST /api/cost/import`, `GET /api/cost/import/template`, `GET /api/cost/records`, `POST /api/report/export`
+- Produces: 数据录入表单页（选择部门/项目/业务线/人员/成本类型/期间 + 输入金额 + 备注）
+- Produces: 数据导入页（模板下载 + 拖拽上传 + 导入结果展示含失败明细）
+- Produces: 报表导出页（选择筛选条件 + 导出 Excel 按钮）
+
+**跨库契约:**
+| 接口 | 方法 | 路径 | 请求体 | 响应 data |
+|------|------|------|--------|----------|
+| 成本录入 | POST | `/api/cost/entry` | `CostEntryRequest` | `CostRecord` |
+| 批量录入 | POST | `/api/cost/batch-entry` | `CostEntryRequest[]` | `CostRecord[]` |
+| 记录列表 | GET | `/api/cost/records` | `?pageNum&pageSize&deptId&period` | `PageResponse<CostRecord>` |
+| 下载模板 | GET | `/api/cost/import/template` | — | Blob (.xlsx) |
+| 导入 Excel | POST | `/api/cost/import` | `FormData(file)` | `ImportResult` |
+| 导出报表 | POST | `/api/report/export` | `AnalysisParams` | Blob (.xlsx) |
 
 - [ ] **Step 1: 创建 cost API + 类型**
 
@@ -3903,7 +1381,6 @@ import { getDepartments, getProjects, getBusinessLines, getEmployees, Department
 import { createCostEntry, getCostRecords, CostRecord } from '../../api/cost';
 import { COST_TYPES, ROLE_TYPES } from '../../utils/constants';
 import { formatMoney, costTypeLabel } from '../../utils/format';
-import dayjs from 'dayjs';
 
 const DataEntry: React.FC = () => {
   const [form] = Form.useForm();
@@ -4010,7 +1487,7 @@ export default DataEntry;
 // src/pages/DataImport/index.tsx
 import React, { useState } from 'react';
 import { Card, Upload, Button, Table, Alert, message, Space, Typography } from 'antd';
-import { UploadOutlined, DownloadOutlined, InboxOutlined } from '@ant-design/icons';
+import { DownloadOutlined, InboxOutlined } from '@ant-design/icons';
 import { downloadImportTemplate, importCostExcel, ImportResult } from '../../api/cost';
 
 const { Dragger } = Upload;
@@ -4038,7 +1515,7 @@ const DataImport: React.FC = () => {
       message.success(`导入完成：成功 ${res.data.successCount} 条`);
     } catch { /* handled */ }
     finally { setLoading(false); }
-    return false; // prevent default upload
+    return false;
   };
 
   const failColumns = [
@@ -4148,7 +1625,7 @@ const ReportExport: React.FC = () => {
   return (
     <Card title="报表导出">
       <Paragraph>选择筛选条件后，点击导出按钮生成 Excel 文件。导出内容包含：汇总、明细、项目成本、人力成本四个 Sheet。</Paragraph>
-      <FilterBar onSearch={setParams} showCostType showRoleType />
+      <FilterBar onSearch={setParams} showCostType showRoleType showTimeGranularity />
       <Space style={{ marginTop: 16 }}>
         <ExportButton params={params} />
       </Space>
@@ -4159,75 +1636,257 @@ const ReportExport: React.FC = () => {
 export default ReportExport;
 ```
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: 验证**
 
+Run:
 ```bash
-git add -A
-git commit -m "feat: add DataEntry, DataImport, and ReportExport pages"
+cd library-frontend-main && pnpm build
 ```
+Expected: 构建成功，无 TypeScript 类型错误
 
 ---
 
-## Task 12: 前后端联调验证 + 最终检查
+## Task 6: 系统管理页面 + 最终构建验证
 
 **Files:**
-- No new files — 验证已有代码的完整性和一致性
+- Create: `library-frontend-main/src/pages/System/UserManage/index.tsx`
+- Create: `library-frontend-main/src/pages/System/RoleManage/index.tsx`
 
 **Interfaces:**
-- 验证所有跨库 API 契约对齐：前端请求参数/响应类型与后端 Controller 签名一致
+- Consumes: `GET /api/auth/users`, `POST /api/auth/users`, `PUT /api/auth/users/{id}`, `GET /api/auth/roles`, `POST /api/auth/roles`, `PUT /api/auth/roles/{id}`
+- Produces: 用户管理页（用户列表 + 新增/编辑弹窗 + 角色分配）
+- Produces: 角色管理页（角色列表 + 新增/编辑弹窗 + 权限配置）
 
-- [ ] **Step 1: 后端全量编译**
+**跨库契约:**
+| 接口 | 方法 | 路径 | 请求体 | 响应 data |
+|------|------|------|--------|----------|
+| 用户列表 | GET | `/api/auth/users` | `?pageNum&pageSize` | `PageResponse<UserInfo>` |
+| 创建用户 | POST | `/api/auth/users` | `{ username, password, name, deptId }` | `UserInfo` |
+| 更新用户 | PUT | `/api/auth/users/{id}` | `{ name, deptId, status, roleIds }` | `UserInfo` |
+| 角色列表 | GET | `/api/auth/roles` | — | `Role[]` |
+| 创建角色 | POST | `/api/auth/roles` | `{ name, code, description, dataScope }` | `Role` |
+| 更新角色 | PUT | `/api/auth/roles/{id}` | `{ name, description, dataScope, permissionIds }` | `Role` |
 
-Run: `cd library-backend-main && mvn compile`
-Expected: BUILD SUCCESS（所有 6 个模块编译通过）
+- [ ] **Step 1: 创建 UserManage 页面**
 
-- [ ] **Step 2: 前端构建检查**
+```tsx
+// src/pages/System/UserManage/index.tsx
+import React, { useState, useEffect } from 'react';
+import { Card, Table, Button, Modal, Form, Input, Select, Tag, message } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
+import request from '../../../api/request';
+import { getDepartments, Department } from '../../../api/baseData';
 
-Run: `cd library-frontend-main && pnpm build`
-Expected: 构建成功，无 TypeScript 类型错误
+interface UserItem {
+  id: number;
+  username: string;
+  name: string;
+  deptId: number | null;
+  status: number;
+  roles: string[];
+}
 
-- [ ] **Step 3: 跨库 API 契约对齐检查**
+const UserManage: React.FC = () => {
+  const [data, setData] = useState<UserItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserItem | null>(null);
+  const [depts, setDepts] = useState<Department[]>([]);
+  const [form] = Form.useForm();
 
-逐项核对以下接口的前后端一致性：
+  useEffect(() => {
+    getDepartments().then(r => setDepts(r.data));
+    fetchUsers(1);
+  }, []);
+
+  const fetchUsers = (pageNum: number) => {
+    setLoading(true);
+    request.get('/auth/users', { params: { pageNum, pageSize: 10 } })
+      .then((res: any) => { setData(res.data.list); setTotal(res.data.total); })
+      .finally(() => setLoading(false));
+  };
+
+  const handleSubmit = async () => {
+    const values = await form.validateFields();
+    if (editingUser) {
+      await request.put(`/auth/users/${editingUser.id}`, values);
+      message.success('更新成功');
+    } else {
+      await request.post('/auth/users', values);
+      message.success('创建成功');
+    }
+    setModalOpen(false);
+    form.resetFields();
+    setEditingUser(null);
+    fetchUsers(1);
+  };
+
+  const columns = [
+    { title: '用户名', dataIndex: 'username', key: 'username' },
+    { title: '姓名', dataIndex: 'name', key: 'name' },
+    { title: '角色', dataIndex: 'roles', key: 'roles', render: (roles: string[]) => roles?.map(r => <Tag key={r}>{r}</Tag>) },
+    { title: '状态', dataIndex: 'status', key: 'status', render: (v: number) => v === 1 ? <Tag color="green">启用</Tag> : <Tag color="red">停用</Tag> },
+    {
+      title: '操作', key: 'action',
+      render: (_: any, record: UserItem) => (
+        <Button type="link" onClick={() => { setEditingUser(record); form.setFieldsValue(record); setModalOpen(true); }}>编辑</Button>
+      ),
+    },
+  ];
+
+  return (
+    <Card title="用户管理" extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingUser(null); form.resetFields(); setModalOpen(true); }}>新增用户</Button>}>
+      <Table dataSource={data} columns={columns} rowKey="id" loading={loading}
+        pagination={{ total, pageSize: 10, onChange: fetchUsers }} />
+      <Modal title={editingUser ? '编辑用户' : '新增用户'} open={modalOpen} onOk={handleSubmit} onCancel={() => setModalOpen(false)}>
+        <Form form={form} layout="vertical">
+          {!editingUser && (
+            <Form.Item name="username" label="用户名" rules={[{ required: true }]}>
+              <Input />
+            </Form.Item>
+          )}
+          {!editingUser && (
+            <Form.Item name="password" label="密码" rules={[{ required: true }]}>
+              <Input.Password />
+            </Form.Item>
+          )}
+          <Form.Item name="name" label="姓名" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="deptId" label="部门">
+            <Select allowClear options={depts.map(d => ({ label: d.name, value: d.id }))} />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </Card>
+  );
+};
+
+export default UserManage;
+```
+
+- [ ] **Step 2: 创建 RoleManage 页面**
+
+```tsx
+// src/pages/System/RoleManage/index.tsx
+import React, { useState, useEffect } from 'react';
+import { Card, Table, Button, Modal, Form, Input, Select, message } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
+import request from '../../../api/request';
+
+interface RoleItem {
+  id: number;
+  name: string;
+  code: string;
+  description: string;
+  dataScope: string;
+}
+
+const DATA_SCOPE_OPTIONS = [
+  { label: '全部数据', value: 'all' },
+  { label: '本部门数据', value: 'dept' },
+  { label: '本人数据', value: 'self' },
+];
+
+const RoleManage: React.FC = () => {
+  const [data, setData] = useState<RoleItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingRole, setEditingRole] = useState<RoleItem | null>(null);
+  const [form] = Form.useForm();
+
+  useEffect(() => { fetchRoles(); }, []);
+
+  const fetchRoles = () => {
+    setLoading(true);
+    request.get('/auth/roles')
+      .then((res: any) => setData(res.data))
+      .finally(() => setLoading(false));
+  };
+
+  const handleSubmit = async () => {
+    const values = await form.validateFields();
+    if (editingRole) {
+      await request.put(`/auth/roles/${editingRole.id}`, values);
+      message.success('更新成功');
+    } else {
+      await request.post('/auth/roles', values);
+      message.success('创建成功');
+    }
+    setModalOpen(false);
+    form.resetFields();
+    setEditingRole(null);
+    fetchRoles();
+  };
+
+  const columns = [
+    { title: '角色名称', dataIndex: 'name', key: 'name' },
+    { title: '角色编码', dataIndex: 'code', key: 'code' },
+    { title: '数据范围', dataIndex: 'dataScope', key: 'dataScope', render: (v: string) => DATA_SCOPE_OPTIONS.find(o => o.value === v)?.label || v },
+    { title: '描述', dataIndex: 'description', key: 'description' },
+    {
+      title: '操作', key: 'action',
+      render: (_: any, record: RoleItem) => (
+        <Button type="link" onClick={() => { setEditingRole(record); form.setFieldsValue(record); setModalOpen(true); }}>编辑</Button>
+      ),
+    },
+  ];
+
+  return (
+    <Card title="角色管理" extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingRole(null); form.resetFields(); setModalOpen(true); }}>新增角色</Button>}>
+      <Table dataSource={data} columns={columns} rowKey="id" loading={loading} pagination={false} />
+      <Modal title={editingRole ? '编辑角色' : '新增角色'} open={modalOpen} onOk={handleSubmit} onCancel={() => setModalOpen(false)}>
+        <Form form={form} layout="vertical">
+          <Form.Item name="name" label="角色名称" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          {!editingRole && (
+            <Form.Item name="code" label="角色编码" rules={[{ required: true }]}>
+              <Input />
+            </Form.Item>
+          )}
+          <Form.Item name="dataScope" label="数据范围" rules={[{ required: true }]}>
+            <Select options={DATA_SCOPE_OPTIONS} />
+          </Form.Item>
+          <Form.Item name="description" label="描述">
+            <Input.TextArea rows={3} />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </Card>
+  );
+};
+
+export default RoleManage;
+```
+
+- [ ] **Step 3: 最终构建验证**
+
+Run:
+```bash
+cd library-frontend-main && pnpm build
+```
+Expected: 构建成功，无 TypeScript 类型错误，所有页面组件均被路由引用
+
+- [ ] **Step 4: 跨库 API 契约对齐检查**
+
+逐项核对前端请求与后端 Controller 签名一致性：
 
 | 接口 | 前端调用 | 后端 Controller | 状态 |
 |------|---------|----------------|------|
 | 登录 | `POST /api/auth/login` → `LoginParams` | `AuthController.login(LoginRequest)` | ✅ |
 | Dashboard | `GET /api/report/dashboard` → `DashboardData` | `DashboardController.getDashboard()` | ✅ |
 | 成本分析 | `GET /api/report/analysis` → `AnalysisParams` | `AnalysisController.analyze(AnalysisQuery)` | ✅ |
-| 人力成本 | `GET /api/report/labor` → `{periodStart, periodEnd}` | `AnalysisController.labor(periodStart, periodEnd)` | ✅ |
+| 人力成本 | `GET /api/report/labor` → `{periodStart, periodEnd, timeGranularity}` | `AnalysisController.labor(...)` | ✅ |
 | 项目成本 | `GET /api/report/project` | `AnalysisController.project()` | ✅ |
 | 数据录入 | `POST /api/cost/entry` → `CostEntryRequest` | `CostEntryController.entry(CostEntryRequest)` | ✅ |
 | 数据导入 | `POST /api/cost/import` → `FormData` | `CostImportController.importExcel(MultipartFile)` | ✅ |
 | 报表导出 | `POST /api/report/export` → `AnalysisParams` | `ExportController.export(AnalysisQuery)` | ✅ |
-| 部门列表 | `GET /api/base/departments` | `DepartmentController.list(tree)` | ✅ |
-| 项目列表 | `GET /api/base/projects` | `ProjectController.list(pageNum, pageSize, deptId)` | ✅ |
-
-- [ ] **Step 4: 数据库脚本完整性检查**
-
-确认 `sql/init.sql` 包含所有 10 张表的 DDL + 初始数据：
-- department ✅
-- business_line ✅
-- project ✅
-- employee ✅
-- cost_record ✅
-- sys_user ✅
-- sys_role ✅
-- sys_user_role ✅
-- sys_permission ✅
-- sys_role_permission ✅
-
-- [ ] **Step 5: 最终 Commit**
-
-```bash
-# library-backend-main
-git add -A
-git commit -m "chore: final integration verification and cleanup"
-
-# library-frontend-main
-git add -A
-git commit -m "chore: final integration verification and cleanup"
-```
+| 部门列表 | `GET /api/base/departments` | `DepartmentController.list()` | ✅ |
+| 项目列表 | `GET /api/base/projects` | `ProjectController.list(pageNum, pageSize)` | ✅ |
+| 用户管理 | `GET/POST/PUT /api/auth/users` | `UserController` | ✅ |
+| 角色管理 | `GET/POST/PUT /api/auth/roles` | `RoleController` | ✅ |
 
 ---
 
@@ -4237,29 +1896,27 @@ git commit -m "chore: final integration verification and cleanup"
 |--------|------------------------|----------------------|------|
 | 认证 | `src/api/auth.ts` → `POST /api/auth/login` | `auth-service` → `AuthController` | `{username, password}` → `{token, username, name, roles}` |
 | Dashboard | `src/api/report.ts` → `GET /api/report/dashboard` | `report-service` → `DashboardController` | → `DashboardDTO` |
-| 成本分析 | `src/api/report.ts` → `GET /api/report/analysis` | `report-service` → `AnalysisController` | `AnalysisQuery` → `List<Map>` |
-| 人力成本 | `src/api/report.ts` → `GET /api/report/labor` | `report-service` → `AnalysisController` | `{periodStart, periodEnd}` → `List<Map>` |
-| 项目成本 | `src/api/report.ts` → `GET /api/report/project` | `report-service` → `AnalysisController` | → `List<Map>` |
+| 成本分析 | `src/api/report.ts` → `GET /api/report/analysis` | `report-service` → `AnalysisController` | `AnalysisQuery` → `List<AnalysisItem>` |
+| 人力成本 | `src/api/report.ts` → `GET /api/report/labor` | `report-service` → `AnalysisController` | `{periodStart, periodEnd, timeGranularity}` → `List<LaborCostItem>` |
+| 项目成本 | `src/api/report.ts` → `GET /api/report/project` | `report-service` → `AnalysisController` | → `List<ProjectCostItem>` |
 | 数据录入 | `src/api/cost.ts` → `POST /api/cost/entry` | `cost-core-service` → `CostEntryController` | `CostEntryRequest` → `CostRecord` |
 | 数据导入 | `src/api/cost.ts` → `POST /api/cost/import` | `cost-core-service` → `CostImportController` | `FormData` → `ImportResultDTO` |
 | 报表导出 | `src/api/report.ts` → `POST /api/report/export` | `report-service` → `ExportController` | `AnalysisQuery` → `.xlsx` Blob |
 | 基础数据 | `src/api/baseData.ts` → `GET /api/base/*` | `base-data-service` → 4 个 Controller | CRUD 标准 REST |
 | JWT 鉴权 | `src/api/request.ts` 拦截器附加 `Authorization` | `gateway` → `JwtAuthGlobalFilter` 校验 + 透传 `X-User-Id` | Bearer Token |
+| 用户管理 | `src/api/request.ts` → `GET/POST/PUT /api/auth/users` | `auth-service` → `UserController` | 标准 CRUD |
+| 角色管理 | `src/api/request.ts` → `GET/POST/PUT /api/auth/roles` | `auth-service` → `RoleController` | 标准 CRUD |
 
 ---
 
-## 开发顺序建议
+## 开发顺序
 
 ```
-Task 1 (后端脚手架 + DB) → Task 2 (Gateway) → Task 3 (Auth)
+Task 1 (脚手架) → Task 2 (布局 + 登录)
     ↓
-Task 4 (Base Data) → Task 5 (Cost Core) → Task 6 (Report)
+Task 3 (Dashboard) → Task 4 (分析页面)
     ↓
-Task 7 (前端脚手架) → Task 8 (布局 + 登录)
-    ↓
-Task 9 (Dashboard) → Task 10 (分析页面) → Task 11 (录入/导入/导出)
-    ↓
-Task 12 (联调验证)
+Task 5 (录入/导入/导出) → Task 6 (系统管理 + 验证)
 ```
 
 每个 Task 完成后独立可测，产出可运行的增量交付物。
