@@ -20,16 +20,16 @@
 
 ## Phase 2: Frontend Foundation (Vue 3 + TypeScript)
 
-- [ ] **F1**: Scaffold Vue 3 + Vite + TypeScript project with routing and Pinia
-- [ ] **F2**: Create API client layer (Axios with base URL config)
-- [ ] **F3**: Implement EmployeeListPage with search and pagination
-- [ ] **F4**: Implement EmployeeFormPage (shared create/edit form)
-- [ ] **F5**: Implement EmployeeDetailPage with budget summary
-- [ ] **F6**: Implement BudgetPage (annual/quarterly/monthly budget management)
-- [ ] **F7**: Implement ImportPage (file upload, preview, result report)
-- [ ] **F8**: Implement WhitelistPage with type toggle (IMPORT / APPROVAL)
-- [ ] **F9**: Add frontend form validation (VeeValidate / custom)
-- [ ] **F10**: Write frontend component tests
+- [x] **F1**: Scaffold Vue 3 + Vite + TypeScript project with routing and Pinia
+- [x] **F2**: Create API client layer (Axios with base URL config)
+- [x] **F3**: Implement EmployeeListPage with search and pagination
+- [x] **F4**: Implement EmployeeFormPage (shared create/edit form)
+- [x] **F5**: Implement EmployeeDetailPage with budget summary
+- [x] **F6**: Implement BudgetPage (annual/quarterly/monthly budget management)
+- [x] **F7**: Implement ImportPage (file upload, preview, result report)
+- [x] **F8**: Implement WhitelistPage with type toggle (IMPORT / APPROVAL)
+- [x] **F9**: Add frontend form validation (VeeValidate / custom)
+- [x] **F10**: Write frontend component tests
 
 ## Phase 3: Integration & Polish
 
