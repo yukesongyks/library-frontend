@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { fetchHelloWorld } from '../api/algorithm';
 import type { HelloWorldData } from '../types/algorithm';
 
@@ -11,7 +11,7 @@ export default function HelloWorldPanel({ onResult }: Props) {
   const [data, setData] = useState<HelloWorldData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     setError(null);
     fetchHelloWorld()
@@ -29,11 +29,11 @@ export default function HelloWorldPanel({ onResult }: Props) {
         onResult(null);
       })
       .finally(() => setLoading(false));
-  };
+  }, [onResult]);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '40px' }}>加载中...</div>;
