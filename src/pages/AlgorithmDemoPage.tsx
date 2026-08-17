@@ -87,7 +87,7 @@ export default function AlgorithmDemoPage() {
 
       <ExportButton
         type={activeTab}
-        data={currentData as Record<string, unknown> | null}
+        data={currentData ? (currentData as unknown as Record<string, unknown>) : null}
         disabled={!currentData}
       />
     </div>
