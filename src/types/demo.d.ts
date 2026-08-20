@@ -45,7 +45,7 @@ export interface BubbleSortData {
 // === Export ===
 export interface ExportRequest {
   type: 'helloworld' | 'hash' | 'bubble-sort';
-  recordIds?: string[];
+  recordIds?: number[];
 }
 
 // === Analytics ===

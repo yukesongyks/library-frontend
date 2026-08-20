@@ -62,7 +62,7 @@ export async function callBubbleSort(params: BubbleSortRequest): Promise<ApiResp
   return data;
 }
 
-export async function exportData(type: 'helloworld' | 'hash' | 'bubble-sort', recordIds?: string[]): Promise<void> {
+export async function exportData(type: 'helloworld' | 'hash' | 'bubble-sort', recordIds?: number[]): Promise<void> {
   const response = await apiClient.post('/export', { type, recordIds }, { responseType: 'blob' });
   const blob = new Blob([response.data]);
   const url = window.URL.createObjectURL(blob);
